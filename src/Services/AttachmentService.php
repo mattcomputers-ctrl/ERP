@@ -1,6 +1,6 @@
 <?php
 
-namespace PrecisionInk\Services;
+namespace App\Services;
 
 /**
  * Manages file attachments linked to system entities.

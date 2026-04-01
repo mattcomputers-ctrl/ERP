@@ -1,6 +1,6 @@
 <?php
 
-namespace PrecisionInk\Services;
+namespace App\Services;
 
 /**
  * Handles bulk data imports from external files.

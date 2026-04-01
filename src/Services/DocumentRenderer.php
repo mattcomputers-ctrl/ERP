@@ -1,6 +1,6 @@
 <?php
 
-namespace PrecisionInk\Services;
+namespace App\Services;
 
 /**
  * Renders printable documents (PDFs) from templates.

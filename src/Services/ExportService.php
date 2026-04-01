@@ -1,6 +1,6 @@
 <?php
 
-namespace PrecisionInk\Services;
+namespace App\Services;
 
 /**
  * Handles bulk data exports to various formats.

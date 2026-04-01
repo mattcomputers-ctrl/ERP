@@ -1,6 +1,6 @@
 <?php
 
-namespace PrecisionInk\Services;
+namespace App\Services;
 
 /**
  * Records and retrieves audit trail entries for all system changes.

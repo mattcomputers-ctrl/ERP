@@ -1,6 +1,6 @@
 <?php
 
-namespace PrecisionInk\Services;
+namespace App\Services;
 
 /**
  * Manages FIFO (First-In, First-Out) inventory costing and lot consumption.
