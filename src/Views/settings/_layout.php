@@ -11,7 +11,11 @@
         <div class="header-left">
             <a href="/" class="app-logo">Precision Ink ERP</a>
         </div>
-        <div class="header-right">
+        <div class="header-right" style="display:flex; align-items:center; gap:16px;">
+            <?php $pqCount = count($_SESSION['print_queue'] ?? []); ?>
+            <a href="/settings/print-queue" class="print-queue-badge-link" style="color:#fff; text-decoration:none; font-size:13px; <?= $pqCount > 0 ? '' : 'display:none;' ?>">
+                &#128424; <span class="print-queue-badge"><?= $pqCount ?></span>
+            </a>
             <?php $user = $_SESSION['user'] ?? null; ?>
             <?php if ($user): ?>
                 <span class="user-name"><?= htmlspecialchars($user['full_name'] ?? $user['username'] ?? '') ?></span>
@@ -90,6 +94,8 @@
                 <a href="/settings/announcements" class="nav-link <?= ($section ?? '') === 'announcements' ? 'active' : '' ?>">Announcements</a>
                 <a href="/settings/scheduled-reports" class="nav-link <?= ($section ?? '') === 'scheduled-reports' ? 'active' : '' ?>">Scheduled Reports</a>
                 <a href="/settings/import-export" class="nav-link <?= ($section ?? '') === 'import-export' ? 'active' : '' ?>">Import / Export</a>
+                <a href="/settings/system-health" class="nav-link <?= ($section ?? '') === 'system-health' ? 'active' : '' ?>">System Health</a>
+                <a href="/settings/print-queue" class="nav-link <?= ($section ?? '') === 'print-queue' ? 'active' : '' ?>">Print Queue</a>
             </div>
         </nav>
 

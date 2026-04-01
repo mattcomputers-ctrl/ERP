@@ -2451,6 +2451,228 @@ class SettingsController extends BaseController
         exit;
     }
 
+    // ── System Health Dashboard ───────────────────────────────────
+
+    public function systemHealth(): void
+    {
+        $this->requireAdmin();
+
+        $basePath = realpath(__DIR__ . '/../../');
+        $config = require __DIR__ . '/../../config/config.php';
+
+        // Disk usage
+        $diskRaw = shell_exec('df -h ' . escapeshellarg($basePath) . ' 2>/dev/null');
+        $disk = ['size' => '?', 'used' => '?', 'avail' => '?', 'pct' => '0'];
+        if ($diskRaw) {
+            $lines = explode("\n", trim($diskRaw));
+            if (isset($lines[1])) {
+                $parts = preg_split('/\s+/', $lines[1]);
+                $disk = [
+                    'size'  => $parts[1] ?? '?',
+                    'used'  => $parts[2] ?? '?',
+                    'avail' => $parts[3] ?? '?',
+                    'pct'   => (int) str_replace('%', '', $parts[4] ?? '0'),
+                ];
+            }
+        }
+
+        // Database size
+        $dbSize = $this->db()->query(
+            'SELECT ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) FROM information_schema.tables WHERE table_schema = DATABASE()'
+        )->fetchColumn() ?: '0.00';
+
+        // Storage size
+        $storagePath = realpath(__DIR__ . '/../../storage/attachments');
+        $storageSize = 'N/A';
+        if ($storagePath && is_dir($storagePath)) {
+            $raw = shell_exec('du -sh ' . escapeshellarg($storagePath) . ' 2>/dev/null');
+            if ($raw) {
+                $storageSize = explode("\t", trim($raw))[0] ?? 'N/A';
+            }
+        }
+
+        // Last backup
+        $backupPath = $this->getSettings(['backup_path'])['backup_path'] ?: ($config['BACKUP_PATH'] ?? $basePath . '/storage/backups');
+        $lastBackup = 'No backups found';
+        if (is_dir($backupPath)) {
+            $files = glob($backupPath . '/*.sql.gz');
+            if ($files) {
+                usort($files, fn($a, $b) => filemtime($b) - filemtime($a));
+                $lastBackup = basename($files[0]) . ' (' . date('Y-m-d H:i', filemtime($files[0])) . ')';
+            }
+        }
+
+        // PHP & MySQL versions
+        $phpVersion = phpversion();
+        $mysqlVersion = $this->db()->query('SELECT VERSION()')->fetchColumn();
+
+        // Cron last runs
+        $cronSettings = $this->getSettings(['cron_notify_last_run', 'cron_snapshot_last_run', 'cron_backup_last_run']);
+
+        // SMTP last success
+        $lastEmail = $this->db()->query(
+            "SELECT created_at FROM outbound_email_log WHERE status='SENT' ORDER BY created_at DESC LIMIT 1"
+        )->fetchColumn() ?: 'Never';
+
+        // PHP error log
+        $errorLogPath = ini_get('error_log');
+        $errorLog = 'Error log not accessible';
+        if ($errorLogPath && file_exists($errorLogPath) && is_readable($errorLogPath)) {
+            $lines = file($errorLogPath);
+            $lastLines = array_slice($lines, -10);
+            $errorLog = implode('', $lastLines);
+        } elseif ($errorLogPath) {
+            $errorLog = 'Error log not accessible (path: ' . $errorLogPath . ')';
+        }
+
+        // Backup config
+        $backupRetention = $this->getSettings(['backup_retention_count'])['backup_retention_count'] ?: '7';
+
+        // Restore command
+        $restoreCmd = "gunzip < {$backupPath}/backup_YYYY-MM-DD_HHiiss.sql.gz | mysql -u {$config['DB_USER']} -p {$config['DB_NAME']}";
+
+        $this->renderView('settings/_layout', [
+            'title'           => 'System Health',
+            'section'         => 'system-health',
+            'content'         => 'settings/system_health',
+            'disk'            => $disk,
+            'dbSize'          => $dbSize,
+            'storageSize'     => $storageSize,
+            'lastBackup'      => $lastBackup,
+            'phpVersion'      => $phpVersion,
+            'mysqlVersion'    => $mysqlVersion,
+            'cronNotify'      => $cronSettings['cron_notify_last_run'] ?: 'Never',
+            'cronSnapshot'    => $cronSettings['cron_snapshot_last_run'] ?: 'Never',
+            'cronBackup'      => $cronSettings['cron_backup_last_run'] ?: 'Never',
+            'lastEmail'       => $lastEmail,
+            'errorLog'        => $errorLog,
+            'backupPath'      => $backupPath,
+            'backupRetention' => $backupRetention,
+            'restoreCmd'      => $restoreCmd,
+        ]);
+    }
+
+    public function runBackup(): void
+    {
+        $this->requireAdmin();
+
+        $basePath = realpath(__DIR__ . '/../../');
+        $output = shell_exec('php ' . escapeshellarg($basePath . '/cli/backup.php') . ' 2>&1');
+
+        $this->auditLog('CREATE', 'backup', 0, null, ['output' => mb_substr($output, 0, 500)]);
+        $this->jsonResponse(['success' => true, 'output' => $output]);
+    }
+
+    // ── Print Queue ───────────────────────────────────────────────
+
+    public function printQueueAdd(): void
+    {
+        $type  = trim($_POST['type'] ?? '');
+        $id    = (int) ($_POST['id'] ?? 0);
+        $label = trim($_POST['label'] ?? '') ?: ($type . ' #' . $id);
+
+        if (!isset($_SESSION['print_queue'])) {
+            $_SESSION['print_queue'] = [];
+        }
+
+        // Avoid duplicates
+        foreach ($_SESSION['print_queue'] as $item) {
+            if ($item['type'] === $type && $item['id'] === $id) {
+                $this->jsonResponse(['count' => count($_SESSION['print_queue'])]);
+                return;
+            }
+        }
+
+        $_SESSION['print_queue'][] = compact('type', 'id', 'label');
+        $this->jsonResponse(['count' => count($_SESSION['print_queue'])]);
+    }
+
+    public function printQueueRemove(): void
+    {
+        $type = trim($_POST['type'] ?? '');
+        $id   = (int) ($_POST['id'] ?? 0);
+
+        $_SESSION['print_queue'] = array_values(array_filter(
+            $_SESSION['print_queue'] ?? [],
+            fn($item) => !($item['type'] === $type && $item['id'] === $id)
+        ));
+
+        $this->jsonResponse(['count' => count($_SESSION['print_queue'])]);
+    }
+
+    public function printQueueClear(): void
+    {
+        $_SESSION['print_queue'] = [];
+        $this->toast('Print queue cleared.');
+        $this->redirect('/settings/print-queue');
+    }
+
+    public function printQueue(): void
+    {
+        $queue = $_SESSION['print_queue'] ?? [];
+
+        $this->renderView('settings/_layout', [
+            'title'   => 'Print Queue',
+            'section' => 'print-queue',
+            'content' => 'settings/print_queue',
+            'queue'   => $queue,
+        ]);
+    }
+
+    public function printQueuePrint(): void
+    {
+        $queue = $_SESSION['print_queue'] ?? [];
+
+        if (empty($queue)) {
+            $this->toast('Print queue is empty.', 'error');
+            $this->redirect('/settings/print-queue');
+            return;
+        }
+
+        // DocumentRenderer will be built in a later session.
+        // For now, show a graceful message.
+        if (!class_exists('\\App\\Services\\DocumentRenderer')) {
+            $this->toast('Document rendering not yet available. This feature will be enabled when the document renderer is built.', 'warning');
+            $this->redirect('/settings/print-queue');
+            return;
+        }
+
+        // When DocumentRenderer is available:
+        $pdfs = [];
+        $renderer = new \App\Services\DocumentRenderer($this->db());
+        foreach ($queue as $item) {
+            $pdfs[] = $renderer->render($item['type'], $item['id']);
+        }
+
+        if (empty($pdfs)) {
+            $this->toast('No documents could be rendered.', 'error');
+            $this->redirect('/settings/print-queue');
+            return;
+        }
+
+        // Merge PDFs using FPDI (when available)
+        $fpdi = new \setasign\Fpdi\Fpdi();
+        foreach ($pdfs as $pdfContent) {
+            $tmpFile = tempnam(sys_get_temp_dir(), 'pdf_');
+            file_put_contents($tmpFile, $pdfContent);
+            $pageCount = $fpdi->setSourceFile($tmpFile);
+            for ($i = 1; $i <= $pageCount; $i++) {
+                $template = $fpdi->importPage($i);
+                $size = $fpdi->getTemplateSize($template);
+                $fpdi->addPage($size['orientation'], [$size['width'], $size['height']]);
+                $fpdi->useTemplate($template);
+            }
+            unlink($tmpFile);
+        }
+
+        $_SESSION['print_queue'] = [];
+
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="print_queue_' . date('Ymd_His') . '.pdf"');
+        echo $fpdi->Output('S');
+        exit;
+    }
+
     // ── System Settings Helpers ────────────────────────────────────
 
     /**
