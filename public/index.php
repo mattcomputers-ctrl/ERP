@@ -126,7 +126,45 @@ $router->mount('/api', function () use ($router) {
 
 // ── Settings ────────────────────────────────────────────────────────
 $router->mount('/settings', function () use ($router) {
-    // TODO: system configuration, user management, roles
+    $c = 'PrecisionInk\\Controllers\\SettingsController';
+
+    $router->get('/',                  "{$c}@index");
+
+    // Company
+    $router->get('/company',           "{$c}@company");
+    $router->post('/company',          "{$c}@saveCompany");
+
+    // Thresholds & Defaults
+    $router->get('/thresholds',        "{$c}@thresholds");
+    $router->post('/thresholds',       "{$c}@saveThresholds");
+
+    // Dropdown Lists
+    $router->get('/uom',               "{$c}@uom");
+    $router->post('/uom',              "{$c}@saveUom");
+
+    $router->get('/ship-via',          "{$c}@shipVia");
+    $router->post('/ship-via',         "{$c}@saveShipVia");
+
+    $router->get('/payment-terms',     "{$c}@paymentTerms");
+    $router->post('/payment-terms',    "{$c}@savePaymentTerms");
+
+    $router->get('/surcharge-types',   "{$c}@surchargeTypes");
+    $router->post('/surcharge-types',  "{$c}@saveSurchargeTypes");
+
+    $router->get('/rma-reasons',       "{$c}@rmaReasons");
+    $router->post('/rma-reasons',      "{$c}@saveRmaReasons");
+
+    $router->get('/lost-quote-reasons',  "{$c}@lostQuoteReasons");
+    $router->post('/lost-quote-reasons', "{$c}@saveLostQuoteReasons");
+
+    $router->get('/landed-cost-types',   "{$c}@landedCostTypes");
+    $router->post('/landed-cost-types',  "{$c}@saveLandedCostTypes");
+
+    $router->get('/reason-codes',      "{$c}@reasonCodes");
+    $router->post('/reason-codes',     "{$c}@saveReasonCodes");
+
+    $router->get('/industry-segments',   "{$c}@industrySegments");
+    $router->post('/industry-segments',  "{$c}@saveIndustrySegments");
 });
 
 // Dispatch
