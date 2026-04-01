@@ -1,0 +1,21 @@
+<?php
+/**
+ * Precision Ink ERP – Configuration
+ * Copy this file to config.php and fill in the values.
+ */
+
+return [
+    'DB_HOST'         => '{{DB_HOST}}',
+    'DB_NAME'         => '{{DB_NAME}}',
+    'DB_USER'         => '{{DB_USER}}',
+    'DB_PASS'         => '{{DB_PASS}}',
+
+    'APP_URL'         => '{{APP_URL}}',
+    'APP_NAME'        => '{{APP_NAME}}',
+
+    'API_KEY'         => '{{API_KEY}}',
+
+    'BACKUP_PATH'     => '{{BACKUP_PATH}}',
+
+    'SESSION_TIMEOUT' => {{SESSION_TIMEOUT}},
+];

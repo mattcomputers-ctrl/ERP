@@ -1,0 +1,19 @@
+{
+    "name": "precision-ink/erp",
+    "description": "Precision Ink ERP – paste ink manufacturer management system",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.2",
+        "dompdf/dompdf": "^2.0",
+        "phpmailer/phpmailer": "^6.9",
+        "bramus/router": "^1.6",
+        "vlucas/phpdotenv": "^5.6",
+        "setasign/fpdi": "^2.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "PrecisionInk\\": "src/"
+        }
+    }
+}
