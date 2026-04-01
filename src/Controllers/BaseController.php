@@ -3,6 +3,7 @@
 namespace PrecisionInk\Controllers;
 
 use App\Services\AuditService;
+use App\Services\CustomFieldService;
 use App\Services\EmailService;
 use App\Services\FacilityService;
 use App\Services\AttachmentService;
@@ -14,6 +15,7 @@ abstract class BaseController
     protected ?EmailService $emailService = null;
     protected ?FacilityService $facilityService = null;
     protected ?AttachmentService $attachmentService = null;
+    protected ?CustomFieldService $customFieldService = null;
 
     /** @var array Static service container, set once at bootstrap time. */
     private static array $container = [];
@@ -47,6 +49,9 @@ abstract class BaseController
         }
         if (isset(self::$container['attachments'])) {
             $this->attachmentService = self::$container['attachments'];
+        }
+        if (isset(self::$container['custom_fields'])) {
+            $this->customFieldService = self::$container['custom_fields'];
         }
     }
 
@@ -279,6 +284,9 @@ abstract class BaseController
      */
     protected function renderView(string $template, array $data = []): void
     {
+        if ($this->customFieldService && !isset($data['customFieldService'])) {
+            $data['customFieldService'] = $this->customFieldService;
+        }
         extract($data);
         require __DIR__ . '/../Views/' . $template . '.php';
     }

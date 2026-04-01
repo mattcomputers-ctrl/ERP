@@ -32,11 +32,12 @@ try {
 }
 
 $container = [
-    'db'          => $pdo,
-    'audit'       => new \App\Services\AuditService($pdo),
-    'email'       => new \App\Services\EmailService($pdo, $_SESSION['user']['id'] ?? null),
-    'facility'    => new \App\Services\FacilityService($pdo),
-    'attachments' => new \App\Services\AttachmentService($pdo, __DIR__ . '/../storage/attachments'),
+    'db'            => $pdo,
+    'audit'         => new \App\Services\AuditService($pdo),
+    'email'         => new \App\Services\EmailService($pdo, $_SESSION['user']['id'] ?? null),
+    'facility'      => new \App\Services\FacilityService($pdo),
+    'attachments'   => new \App\Services\AttachmentService($pdo, __DIR__ . '/../storage/attachments'),
+    'custom_fields' => new \App\Services\CustomFieldService($pdo),
 ];
 
 \PrecisionInk\Controllers\BaseController::setContainer($container);
