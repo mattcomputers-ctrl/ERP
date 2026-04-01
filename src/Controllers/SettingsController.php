@@ -2345,6 +2345,112 @@ class SettingsController extends BaseController
         $this->jsonResponse(['success' => true, 'active' => $newActive]);
     }
 
+    // ── Import / Export Tools ─────────────────────────────────────
+
+    public function importExport(): void
+    {
+        $this->requireAdmin();
+
+        $this->renderView('settings/_layout', [
+            'title'   => 'Import / Export',
+            'section' => 'import-export',
+            'content' => 'settings/import_export',
+        ]);
+    }
+
+    public function importTemplate(string $entity): void
+    {
+        $this->requireAdmin();
+
+        $svc = new \App\Services\ImportService($this->db());
+        $template = $svc->getTemplate($entity);
+
+        if (!$template) {
+            http_response_code(404);
+            echo 'Unknown entity.';
+            exit;
+        }
+
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="' . $entity . '_import_template.csv"');
+        $out = fopen('php://output', 'w');
+        foreach ($template as $row) {
+            fputcsv($out, $row);
+        }
+        fclose($out);
+        exit;
+    }
+
+    public function importDryRun(string $entity): void
+    {
+        $this->requireAdmin();
+
+        if (empty($_FILES['csv'])) {
+            $this->jsonResponse([['row' => 0, 'status' => 'error', 'message' => 'No file uploaded.']]);
+            return;
+        }
+
+        $rows = \App\Services\ImportService::parseCsvUpload($_FILES['csv']);
+        if (empty($rows)) {
+            $this->jsonResponse([['row' => 0, 'status' => 'error', 'message' => 'CSV is empty or could not be parsed.']]);
+            return;
+        }
+
+        $svc = new \App\Services\ImportService($this->db());
+        $results = $svc->dryRun($entity, $rows);
+        $this->jsonResponse($results);
+    }
+
+    public function importCommit(string $entity): void
+    {
+        $this->requireAdmin();
+
+        if (empty($_FILES['csv'])) {
+            $this->jsonResponse(['imported' => 0, 'skipped' => 0, 'errors' => [['row' => 0, 'message' => 'No file uploaded.']]]);
+            return;
+        }
+
+        $rows = \App\Services\ImportService::parseCsvUpload($_FILES['csv']);
+        if (empty($rows)) {
+            $this->jsonResponse(['imported' => 0, 'skipped' => 0, 'errors' => [['row' => 0, 'message' => 'CSV is empty.']]]);
+            return;
+        }
+
+        $svc = new \App\Services\ImportService($this->db());
+        $result = $svc->commit($entity, $rows);
+
+        $this->auditLog('CREATE', 'import_' . $entity, 0, null, [
+            'filename' => $_FILES['csv']['name'] ?? 'upload.csv',
+            'imported' => $result['imported'],
+            'skipped'  => $result['skipped'],
+        ]);
+
+        $this->jsonResponse($result);
+    }
+
+    public function exportCsv(string $entity): void
+    {
+        $this->requireAdmin();
+
+        $svc = new \App\Services\ExportService($this->db());
+        $csv = $svc->export($entity);
+
+        if ($csv === '') {
+            http_response_code(404);
+            echo 'Unknown entity or no data.';
+            exit;
+        }
+
+        $filename = $svc->getFilename($entity);
+
+        $this->auditLog('CREATE', 'export_' . $entity, 0, null, ['filename' => $filename]);
+
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        echo $csv;
+        exit;
+    }
+
     // ── System Settings Helpers ────────────────────────────────────
 
     /**

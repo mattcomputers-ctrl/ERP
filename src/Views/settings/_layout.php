@@ -89,6 +89,7 @@
                 <a href="/settings/custom-fields" class="nav-link <?= ($section ?? '') === 'custom-fields' ? 'active' : '' ?>">Custom Fields</a>
                 <a href="/settings/announcements" class="nav-link <?= ($section ?? '') === 'announcements' ? 'active' : '' ?>">Announcements</a>
                 <a href="/settings/scheduled-reports" class="nav-link <?= ($section ?? '') === 'scheduled-reports' ? 'active' : '' ?>">Scheduled Reports</a>
+                <a href="/settings/import-export" class="nav-link <?= ($section ?? '') === 'import-export' ? 'active' : '' ?>">Import / Export</a>
             </div>
         </nav>
 
