@@ -44,16 +44,22 @@
             </div>
 
             <div class="nav-group">
+                <h4 class="nav-group-title">Items</h4>
+                <a href="/settings/item-prototypes" class="nav-link <?= ($section ?? '') === 'item-prototypes' ? 'active' : '' ?>">Item Prototypes</a>
+                <a href="/settings/batch-templates" class="nav-link <?= ($section ?? '') === 'batch-templates' ? 'active' : '' ?>">Batch Templates</a>
+            </div>
+
+            <div class="nav-group">
                 <h4 class="nav-group-title">Document</h4>
-                <span class="nav-link disabled">Numbering Sequences <em>(coming soon)</em></span>
+                <a href="/settings/document-numbering" class="nav-link <?= ($section ?? '') === 'document-numbering' ? 'active' : '' ?>">Numbering Sequences</a>
                 <span class="nav-link disabled">Email Templates <em>(coming soon)</em></span>
                 <span class="nav-link disabled">Document Templates <em>(coming soon)</em></span>
             </div>
 
             <div class="nav-group">
                 <h4 class="nav-group-title">Facilities</h4>
-                <span class="nav-link disabled">Facilities <em>(coming soon)</em></span>
-                <span class="nav-link disabled">Equipment <em>(coming soon)</em></span>
+                <a href="/settings/facilities" class="nav-link <?= ($section ?? '') === 'facilities' ? 'active' : '' ?>">Facilities</a>
+                <a href="/settings/equipment" class="nav-link <?= ($section ?? '') === 'equipment' ? 'active' : '' ?>">Equipment</a>
             </div>
 
             <div class="nav-group">
@@ -61,6 +67,7 @@
                 <span class="nav-link disabled">Users <em>(coming soon)</em></span>
                 <span class="nav-link disabled">Groups &amp; Permissions <em>(coming soon)</em></span>
                 <span class="nav-link disabled">Password Policy <em>(coming soon)</em></span>
+                <a href="/settings/api-keys" class="nav-link <?= ($section ?? '') === 'api-keys' ? 'active' : '' ?>">API Keys</a>
             </div>
 
             <div class="nav-group">

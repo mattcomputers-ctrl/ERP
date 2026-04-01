@@ -449,6 +449,17 @@ a.nav-link:hover {
     padding-bottom: 1px;
 }
 
+/* ── Text Helpers ────────────────────────────────────────────── */
+.text-danger { color: #dc2626; font-weight: 600; }
+
+/* ── Btn Danger ──────────────────────────────────────────────── */
+.btn-danger {
+    background: #dc2626;
+    color: #fff;
+    border-color: #dc2626;
+}
+.btn-danger:hover { background: #b91c1c; }
+
 /* ── Responsive ──────────────────────────────────────────────── */
 @media (max-width: 768px) {
     .settings-wrapper { flex-direction: column; }

@@ -165,6 +165,31 @@ $router->mount('/settings', function () use ($router) {
 
     $router->get('/industry-segments',   "{$c}@industrySegments");
     $router->post('/industry-segments',  "{$c}@saveIndustrySegments");
+
+    // Facilities
+    $router->get('/facilities',          "{$c}@facilities");
+    $router->post('/facilities',         "{$c}@saveFacility");
+
+    // Equipment
+    $router->get('/equipment',           "{$c}@equipment");
+    $router->post('/equipment',          "{$c}@saveEquipment");
+
+    // Item Prototypes
+    $router->get('/item-prototypes',          "{$c}@itemPrototypes");
+    $router->post('/item-prototypes',         "{$c}@saveItemPrototype");
+    $router->get('/item-prototypes/form',     "{$c}@itemPrototypeForm");
+
+    // Batch Templates
+    $router->get('/batch-templates',     "{$c}@batchTemplates");
+    $router->post('/batch-templates',    "{$c}@saveBatchTemplate");
+
+    // Document Numbering
+    $router->get('/document-numbering',  "{$c}@documentNumbering");
+    $router->post('/document-numbering', "{$c}@saveDocumentNumbering");
+
+    // API Keys
+    $router->get('/api-keys',            "{$c}@apiKeys");
+    $router->post('/api-keys',           "{$c}@saveApiKey");
 });
 
 // Dispatch
