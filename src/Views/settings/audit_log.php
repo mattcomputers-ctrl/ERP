@@ -42,6 +42,10 @@
             <?php endforeach; ?>
         </select>
     </div>
+    <div class="form-group" style="min-width:100px;">
+        <label>Record ID</label>
+        <input type="text" name="record_id" class="form-control" placeholder="ID" value="<?= htmlspecialchars($filters['recordId'] ?? '') ?>" style="width:80px;">
+    </div>
     <div class="form-group">
         <button type="submit" class="btn btn-primary">Apply</button>
         <a href="/settings/audit-log" class="btn btn-secondary" style="margin-left:4px;">Clear</a>
@@ -78,7 +82,7 @@
                 $hasChanges = !empty($row['field_changes']);
                 $actionColors = [
                     'CREATE' => 'success', 'UPDATE' => 'info', 'DELETE' => 'danger',
-                    'LOGIN' => 'primary', 'LOGOUT' => 'secondary', 'PERMISSION_OVERRIDE' => 'warning',
+                    'LOGIN' => 'secondary', 'LOGOUT' => 'secondary', 'PERMISSION_OVERRIDE' => 'warning',
                 ];
                 $badgeClass = $actionColors[$row['action_type']] ?? 'secondary';
                 ?>

@@ -70,7 +70,7 @@
                         <?php endif; ?>
                     </td>
                     <td title="<?= htmlspecialchars($row['recipients']) ?>"><?= htmlspecialchars(mb_strimwidth($row['recipients'], 0, 40, '...')) ?></td>
-                    <td><?= htmlspecialchars($row['subject']) ?></td>
+                    <td title="<?= htmlspecialchars($row['subject']) ?>"><?= htmlspecialchars(mb_strimwidth($row['subject'], 0, 60, '...')) ?></td>
                     <td>
                         <span class="badge badge-<?= $row['status'] === 'SENT' ? 'success' : 'danger' ?>">
                             <?= htmlspecialchars($row['status']) ?>
@@ -122,7 +122,7 @@
     <div style="background:#fff; border-radius:8px; padding:24px; max-width:500px; width:90%; margin:auto; margin-top:15vh; box-shadow:0 4px 20px rgba(0,0,0,0.2);">
         <h3 style="margin-top:0;">Resend Email</h3>
         <div class="form-group">
-            <label>Recipients <small style="color:#666;">(comma-separated)</small></label>
+            <label>Recipients <small style="color:#666;">(one per line, or comma-separated)</small></label>
             <textarea id="resend-recipients" class="form-control" rows="3" style="width:100%;"></textarea>
         </div>
         <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
@@ -145,7 +145,8 @@ function toggleEmailDetail(idx) {
 
 function openResendModal(id, recipients) {
     currentResendId = id;
-    document.getElementById('resend-recipients').value = recipients;
+    // Split comma/semicolon-separated recipients onto separate lines
+    document.getElementById('resend-recipients').value = recipients.split(/[,;]\s*/).join('\n');
     document.getElementById('resend-result').style.display = 'none';
     document.getElementById('resend-modal').style.display = 'block';
 }

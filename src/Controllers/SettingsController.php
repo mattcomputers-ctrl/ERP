@@ -1627,6 +1627,7 @@ class SettingsController extends BaseController
         $dateTo     = trim($_GET['date_to'] ?? '');
         $module     = trim($_GET['module'] ?? '');
         $actionType = trim($_GET['action_type'] ?? '');
+        $recordId   = trim($_GET['record_id'] ?? '');
 
         if ($userId !== '') {
             $where[] = 'a.user_id = ?';
@@ -1647,6 +1648,10 @@ class SettingsController extends BaseController
         if ($actionType !== '') {
             $where[] = 'a.action_type = ?';
             $params[] = $actionType;
+        }
+        if ($recordId !== '') {
+            $where[] = 'a.record_id = ?';
+            $params[] = (int) $recordId;
         }
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -1676,7 +1681,7 @@ class SettingsController extends BaseController
             'rows'        => $rows,
             'users'       => $users,
             'modules'     => $modules,
-            'filters'     => compact('userId', 'dateFrom', 'dateTo', 'module', 'actionType'),
+            'filters'     => compact('userId', 'dateFrom', 'dateTo', 'module', 'actionType', 'recordId'),
             'page'        => $page,
             'totalPages'  => $totalPages,
             'total'       => $total,
@@ -1695,6 +1700,7 @@ class SettingsController extends BaseController
         $dateTo     = trim($_GET['date_to'] ?? '');
         $module     = trim($_GET['module'] ?? '');
         $actionType = trim($_GET['action_type'] ?? '');
+        $recordId   = trim($_GET['record_id'] ?? '');
 
         if ($userId !== '') {
             $where[] = 'a.user_id = ?';
@@ -1716,6 +1722,10 @@ class SettingsController extends BaseController
             $where[] = 'a.action_type = ?';
             $params[] = $actionType;
         }
+        if ($recordId !== '') {
+            $where[] = 'a.record_id = ?';
+            $params[] = (int) $recordId;
+        }
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
@@ -1729,30 +1739,17 @@ class SettingsController extends BaseController
         header('Content-Disposition: attachment; filename="audit_log_' . date('Y-m-d_His') . '.csv"');
 
         $out = fopen('php://output', 'w');
-        fputcsv($out, ['Timestamp', 'User', 'Action', 'Module', 'Record ID', 'IP Address', 'Changes']);
+        fputcsv($out, ['timestamp', 'username', 'action_type', 'module', 'record_id', 'field_changes', 'ip_address']);
 
         foreach ($rows as $row) {
-            $changes = '';
-            if ($row['field_changes']) {
-                $decoded = json_decode($row['field_changes'], true);
-                if (is_array($decoded)) {
-                    $parts = [];
-                    foreach ($decoded as $field => $vals) {
-                        $old = $vals['old'] ?? '';
-                        $new = $vals['new'] ?? '';
-                        $parts[] = "{$field}: {$old} → {$new}";
-                    }
-                    $changes = implode('; ', $parts);
-                }
-            }
             fputcsv($out, [
                 $row['created_at'],
                 $row['username'] ?? 'System',
                 $row['action_type'],
                 $row['module'],
                 $row['record_id'],
+                $row['field_changes'] ?? '',
                 $row['ip_address'],
-                $changes,
             ]);
         }
 

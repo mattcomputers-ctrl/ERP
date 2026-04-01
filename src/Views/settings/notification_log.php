@@ -54,7 +54,7 @@
                 <tr>
                     <td><?= htmlspecialchars($row['created_at']) ?></td>
                     <td><?= htmlspecialchars($labelMap[$row['alert_type']] ?? ucwords(str_replace('_', ' ', $row['alert_type']))) ?></td>
-                    <td><?= htmlspecialchars($row['recipients']) ?></td>
+                    <td title="<?= htmlspecialchars($row['recipients']) ?>"><?= htmlspecialchars(mb_strimwidth($row['recipients'], 0, 50, '...')) ?></td>
                     <td>
                         <?php if ($row['reference_type']): ?>
                             <?= htmlspecialchars($row['reference_type']) ?> #<?= htmlspecialchars($row['reference_id']) ?>
