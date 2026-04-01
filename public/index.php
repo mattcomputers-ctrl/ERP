@@ -214,7 +214,57 @@ $router->mount('/settings', function () use ($router) {
     $router->get('/scheduled-reports',             "{$c}@scheduledReports");
     $router->post('/scheduled-reports/save',       "{$c}@saveScheduledReport");
     $router->post('/scheduled-reports/delete/(\d+)', "{$c}@deleteScheduledReport");
+
+    // Notification Log
+    $router->get('/notification-log',              "{$c}@notificationLog");
+
+    // Audit Log
+    $router->get('/audit-log',                     "{$c}@auditLog");
+    $router->get('/audit-log/export',              "{$c}@auditLogExport");
+
+    // Email Log
+    $router->get('/email-log',                     "{$c}@emailLog");
+    $router->post('/email-log/resend/(\d+)',       "{$c}@resendEmail");
+
+    // User Activity
+    $router->get('/user-activity',                 "{$c}@userActivity");
+    $router->post('/user-activity/force-logout/(\d+)', "{$c}@forceLogout");
+    $router->get('/user-activity/sessions-json',   "{$c}@activeSessionsJson");
+
+    // Announcements
+    $router->get('/announcements',                 "{$c}@announcements");
+    $router->post('/announcements/save',           "{$c}@saveAnnouncement");
+    $router->post('/announcements/delete/(\d+)',   "{$c}@deleteAnnouncement");
+
+    // Custom Fields
+    $router->get('/custom-fields',                 "{$c}@customFields");
+    $router->get('/custom-fields/(\w+)',           "{$c}@customFields");
+    $router->post('/custom-fields/save',           "{$c}@saveCustomField");
+    $router->post('/custom-fields/deactivate/(\d+)', "{$c}@deactivateCustomField");
+
+    // Import/Export
+    $router->get('/import-export',                 "{$c}@importExport");
+    $router->get('/import/template/([\w-]+)',      "{$c}@importTemplate");
+    $router->post('/import/dry-run/([\w-]+)',      "{$c}@importDryRun");
+    $router->post('/import/commit/([\w-]+)',       "{$c}@importCommit");
+    $router->get('/export/([\w-]+)',               "{$c}@exportCsv");
+
+    // System Health
+    $router->get('/system-health',                 "{$c}@systemHealth");
+    $router->post('/backup/run',                   "{$c}@runBackup");
+
+    // Print Queue
+    $router->get('/print-queue',                   "{$c}@printQueue");
+    $router->post('/print-queue/print',            "{$c}@printQueuePrint");
+    $router->post('/print-queue/clear',            "{$c}@printQueueClear");
+    $router->post('/print-queue/remove',           "{$c}@printQueueRemove");
 });
+
+// ── Print Queue Add (outside /settings mount) ──────────────────
+$router->post('/print-queue/add', 'PrecisionInk\\Controllers\\SettingsController@printQueueAdd');
+
+// ── Announcement Dismiss (outside /settings mount) ─────────────
+$router->post('/announcements/dismiss/(\d+)', 'PrecisionInk\\Controllers\\SettingsController@dismissAnnouncement');
 
 // Dispatch
 $router->run();

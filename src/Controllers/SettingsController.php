@@ -1531,6 +1531,392 @@ class SettingsController extends BaseController
         $this->redirect('/settings/scheduled-reports');
     }
 
+    // ── Notification Log ──────────────────────────────────────────
+
+    private function getAlertTypeLabelMap(): array
+    {
+        return [
+            'low_stock'                    => 'Low Stock Alert',
+            'batch_overdue'                => 'Batch Overdue',
+            'credit_limit_warning'         => 'Credit Limit Warning',
+            'credit_override_used'         => 'Credit Override Used',
+            'cost_change'                  => 'Cost Change Alert',
+            'quote_expiring'               => 'Quote Expiring Soon',
+            'orders_open_too_long'         => 'Orders Open Too Long',
+            'orders_approaching_ship_date' => 'Orders Approaching Ship Date',
+            'task_overdue'                 => 'Task Overdue',
+            'batch_cost_variance'          => 'Batch Cost Variance',
+        ];
+    }
+
+    public function notificationLog(): void
+    {
+        $this->requireAdmin();
+
+        $where = [];
+        $params = [];
+
+        $alertType  = trim($_GET['alert_type'] ?? '');
+        $dateFrom   = trim($_GET['date_from'] ?? '');
+        $dateTo     = trim($_GET['date_to'] ?? '');
+        $status     = trim($_GET['status'] ?? '');
+
+        if ($alertType !== '') {
+            $where[] = 'n.alert_type = ?';
+            $params[] = $alertType;
+        }
+        if ($dateFrom !== '') {
+            $where[] = 'n.created_at >= ?';
+            $params[] = $dateFrom . ' 00:00:00';
+        }
+        if ($dateTo !== '') {
+            $where[] = 'n.created_at <= ?';
+            $params[] = $dateTo . ' 23:59:59';
+        }
+        if ($status !== '') {
+            $where[] = 'n.status = ?';
+            $params[] = $status;
+        }
+
+        $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        // Count total
+        $countStmt = $this->db()->prepare("SELECT COUNT(*) FROM notification_log n {$whereClause}");
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+
+        $perPage = 50;
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        $offset = ($page - 1) * $perPage;
+
+        $stmt = $this->db()->prepare(
+            "SELECT n.* FROM notification_log n {$whereClause} ORDER BY n.created_at DESC LIMIT {$perPage} OFFSET {$offset}"
+        );
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
+
+        // Get distinct alert types for dropdown
+        $alertTypes = $this->db()->query('SELECT DISTINCT alert_type FROM notification_log ORDER BY alert_type')->fetchAll(\PDO::FETCH_COLUMN);
+
+        $this->renderView('settings/_layout', [
+            'title'       => 'Notification Log',
+            'section'     => 'notification-log',
+            'content'     => 'settings/notification_log',
+            'rows'        => $rows,
+            'alertTypes'  => $alertTypes,
+            'labelMap'    => $this->getAlertTypeLabelMap(),
+            'filters'     => compact('alertType', 'dateFrom', 'dateTo', 'status'),
+            'page'        => $page,
+            'totalPages'  => $totalPages,
+            'total'       => $total,
+        ]);
+    }
+
+    // ── Audit Log ─────────────────────────────────────────────────
+
+    public function auditLog(): void
+    {
+        $this->requireAdmin();
+
+        $where = [];
+        $params = [];
+
+        $userId     = trim($_GET['user_id'] ?? '');
+        $dateFrom   = trim($_GET['date_from'] ?? '');
+        $dateTo     = trim($_GET['date_to'] ?? '');
+        $module     = trim($_GET['module'] ?? '');
+        $actionType = trim($_GET['action_type'] ?? '');
+
+        if ($userId !== '') {
+            $where[] = 'a.user_id = ?';
+            $params[] = (int) $userId;
+        }
+        if ($dateFrom !== '') {
+            $where[] = 'a.created_at >= ?';
+            $params[] = $dateFrom . ' 00:00:00';
+        }
+        if ($dateTo !== '') {
+            $where[] = 'a.created_at <= ?';
+            $params[] = $dateTo . ' 23:59:59';
+        }
+        if ($module !== '') {
+            $where[] = 'a.module = ?';
+            $params[] = $module;
+        }
+        if ($actionType !== '') {
+            $where[] = 'a.action_type = ?';
+            $params[] = $actionType;
+        }
+
+        $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $countStmt = $this->db()->prepare("SELECT COUNT(*) FROM audit_log a {$whereClause}");
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+
+        $perPage = 50;
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        $offset = ($page - 1) * $perPage;
+
+        $stmt = $this->db()->prepare(
+            "SELECT a.*, u.username FROM audit_log a LEFT JOIN users u ON a.user_id = u.id {$whereClause} ORDER BY a.created_at DESC LIMIT {$perPage} OFFSET {$offset}"
+        );
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
+
+        $users = $this->db()->query('SELECT id, username FROM users ORDER BY username')->fetchAll();
+        $modules = $this->db()->query('SELECT DISTINCT module FROM audit_log ORDER BY module')->fetchAll(\PDO::FETCH_COLUMN);
+
+        $this->renderView('settings/_layout', [
+            'title'       => 'Audit Log',
+            'section'     => 'audit-log',
+            'content'     => 'settings/audit_log',
+            'rows'        => $rows,
+            'users'       => $users,
+            'modules'     => $modules,
+            'filters'     => compact('userId', 'dateFrom', 'dateTo', 'module', 'actionType'),
+            'page'        => $page,
+            'totalPages'  => $totalPages,
+            'total'       => $total,
+        ]);
+    }
+
+    public function auditLogExport(): void
+    {
+        $this->requireAdmin();
+
+        $where = [];
+        $params = [];
+
+        $userId     = trim($_GET['user_id'] ?? '');
+        $dateFrom   = trim($_GET['date_from'] ?? '');
+        $dateTo     = trim($_GET['date_to'] ?? '');
+        $module     = trim($_GET['module'] ?? '');
+        $actionType = trim($_GET['action_type'] ?? '');
+
+        if ($userId !== '') {
+            $where[] = 'a.user_id = ?';
+            $params[] = (int) $userId;
+        }
+        if ($dateFrom !== '') {
+            $where[] = 'a.created_at >= ?';
+            $params[] = $dateFrom . ' 00:00:00';
+        }
+        if ($dateTo !== '') {
+            $where[] = 'a.created_at <= ?';
+            $params[] = $dateTo . ' 23:59:59';
+        }
+        if ($module !== '') {
+            $where[] = 'a.module = ?';
+            $params[] = $module;
+        }
+        if ($actionType !== '') {
+            $where[] = 'a.action_type = ?';
+            $params[] = $actionType;
+        }
+
+        $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $stmt = $this->db()->prepare(
+            "SELECT a.*, u.username FROM audit_log a LEFT JOIN users u ON a.user_id = u.id {$whereClause} ORDER BY a.created_at DESC"
+        );
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
+
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="audit_log_' . date('Y-m-d_His') . '.csv"');
+
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['Timestamp', 'User', 'Action', 'Module', 'Record ID', 'IP Address', 'Changes']);
+
+        foreach ($rows as $row) {
+            $changes = '';
+            if ($row['field_changes']) {
+                $decoded = json_decode($row['field_changes'], true);
+                if (is_array($decoded)) {
+                    $parts = [];
+                    foreach ($decoded as $field => $vals) {
+                        $old = $vals['old'] ?? '';
+                        $new = $vals['new'] ?? '';
+                        $parts[] = "{$field}: {$old} → {$new}";
+                    }
+                    $changes = implode('; ', $parts);
+                }
+            }
+            fputcsv($out, [
+                $row['created_at'],
+                $row['username'] ?? 'System',
+                $row['action_type'],
+                $row['module'],
+                $row['record_id'],
+                $row['ip_address'],
+                $changes,
+            ]);
+        }
+
+        fclose($out);
+        $this->auditLog('CREATE', 'audit_log_export', 0, null, ['exported_rows' => count($rows)]);
+        exit;
+    }
+
+    // ── Outbound Email Log ────────────────────────────────────────
+
+    public function emailLog(): void
+    {
+        $this->requireAdmin();
+
+        $where = [];
+        $params = [];
+
+        $recipient    = trim($_GET['recipient'] ?? '');
+        $documentType = trim($_GET['document_type'] ?? '');
+        $dateFrom     = trim($_GET['date_from'] ?? '');
+        $dateTo       = trim($_GET['date_to'] ?? '');
+        $status       = trim($_GET['status'] ?? '');
+
+        if ($recipient !== '') {
+            $where[] = 'e.recipients LIKE ?';
+            $params[] = '%' . $recipient . '%';
+        }
+        if ($documentType !== '') {
+            $where[] = 'e.document_type = ?';
+            $params[] = $documentType;
+        }
+        if ($dateFrom !== '') {
+            $where[] = 'e.created_at >= ?';
+            $params[] = $dateFrom . ' 00:00:00';
+        }
+        if ($dateTo !== '') {
+            $where[] = 'e.created_at <= ?';
+            $params[] = $dateTo . ' 23:59:59';
+        }
+        if ($status !== '') {
+            $where[] = 'e.status = ?';
+            $params[] = $status;
+        }
+
+        $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $countStmt = $this->db()->prepare("SELECT COUNT(*) FROM outbound_email_log e {$whereClause}");
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+
+        $perPage = 50;
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        $offset = ($page - 1) * $perPage;
+
+        $stmt = $this->db()->prepare(
+            "SELECT e.*, u.username AS sent_by_name FROM outbound_email_log e LEFT JOIN users u ON e.sent_by = u.id {$whereClause} ORDER BY e.created_at DESC LIMIT {$perPage} OFFSET {$offset}"
+        );
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
+
+        $documentTypes = $this->db()->query('SELECT DISTINCT document_type FROM outbound_email_log ORDER BY document_type')->fetchAll(\PDO::FETCH_COLUMN);
+
+        $this->renderView('settings/_layout', [
+            'title'         => 'Outbound Email Log',
+            'section'       => 'email-log',
+            'content'       => 'settings/email_log',
+            'rows'          => $rows,
+            'documentTypes' => $documentTypes,
+            'filters'       => compact('recipient', 'documentType', 'dateFrom', 'dateTo', 'status'),
+            'page'          => $page,
+            'totalPages'    => $totalPages,
+            'total'         => $total,
+        ]);
+    }
+
+    public function resendEmail(string $id): void
+    {
+        $this->requireAdmin();
+        $id = (int) $id;
+
+        $stmt = $this->db()->prepare('SELECT * FROM outbound_email_log WHERE id = ?');
+        $stmt->execute([$id]);
+        $original = $stmt->fetch();
+
+        if (!$original) {
+            $this->jsonResponse(['success' => false, 'error' => 'Email record not found.'], 404);
+            return;
+        }
+
+        $recipients = trim($_POST['recipients'] ?? '');
+        if ($recipients === '') {
+            $this->jsonResponse(['success' => false, 'error' => 'Recipients are required.']);
+            return;
+        }
+
+        $user = $this->currentUser();
+        $newStatus = 'FAILED';
+        $failureReason = null;
+
+        try {
+            // Attempt to send via EmailService
+            $smtpSettings = $this->getSettings([
+                'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password',
+                'smtp_from_address', 'smtp_from_name', 'smtp_encryption',
+            ]);
+
+            if (!empty($smtpSettings['smtp_host'])) {
+                $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+                $mail->isSMTP();
+                $mail->Host       = $smtpSettings['smtp_host'];
+                $mail->Port       = (int) ($smtpSettings['smtp_port'] ?: 587);
+                $mail->SMTPAuth   = !empty($smtpSettings['smtp_username']);
+                $mail->Username   = $smtpSettings['smtp_username'];
+                $mail->Password   = $this->decryptSmtpPassword($smtpSettings['smtp_password']);
+                $mail->SMTPSecure = $smtpSettings['smtp_encryption'] === 'ssl'
+                    ? \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS
+                    : \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+
+                $mail->setFrom(
+                    $smtpSettings['smtp_from_address'] ?: 'noreply@example.com',
+                    $smtpSettings['smtp_from_name'] ?: 'Precision Ink ERP'
+                );
+
+                foreach (preg_split('/[\s,;]+/', $recipients) as $addr) {
+                    $addr = trim($addr);
+                    if ($addr !== '') {
+                        $mail->addAddress($addr);
+                    }
+                }
+
+                $mail->Subject = $original['subject'];
+                $mail->Body    = 'Resent: ' . $original['subject'];
+                $mail->isHTML(false);
+                $mail->send();
+                $newStatus = 'SENT';
+            } else {
+                $failureReason = 'SMTP not configured.';
+            }
+        } catch (\Exception $e) {
+            $failureReason = $e->getMessage();
+        }
+
+        // Log as new row
+        $this->db()->prepare(
+            'INSERT INTO outbound_email_log (sent_by, document_type, reference_type, reference_id, recipients, subject, status, failure_reason, attachment_filename) VALUES (?,?,?,?,?,?,?,?,?)'
+        )->execute([
+            $user['id'] ?? null,
+            $original['document_type'],
+            $original['reference_type'],
+            $original['reference_id'],
+            $recipients,
+            $original['subject'],
+            $newStatus,
+            $failureReason,
+            $original['attachment_filename'],
+        ]);
+
+        $this->jsonResponse([
+            'success' => $newStatus === 'SENT',
+            'error'   => $failureReason,
+        ]);
+    }
+
     // ── System Settings Helpers ────────────────────────────────────
 
     /**

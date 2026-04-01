@@ -77,6 +77,13 @@
             </div>
 
             <div class="nav-group">
+                <h4 class="nav-group-title">Logs</h4>
+                <a href="/settings/notification-log" class="nav-link <?= ($section ?? '') === 'notification-log' ? 'active' : '' ?>">Notification Log</a>
+                <a href="/settings/audit-log" class="nav-link <?= ($section ?? '') === 'audit-log' ? 'active' : '' ?>">Audit Log</a>
+                <a href="/settings/email-log" class="nav-link <?= ($section ?? '') === 'email-log' ? 'active' : '' ?>">Email Log</a>
+            </div>
+
+            <div class="nav-group">
                 <h4 class="nav-group-title">Advanced</h4>
                 <span class="nav-link disabled">Custom Fields <em>(coming soon)</em></span>
                 <span class="nav-link disabled">Announcements <em>(coming soon)</em></span>
