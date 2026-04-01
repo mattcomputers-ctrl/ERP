@@ -13,7 +13,8 @@
     },
     "autoload": {
         "psr-4": {
-            "PrecisionInk\\": "src/"
+            "PrecisionInk\\": "src/",
+            "App\\": "src/"
         }
     }
 }

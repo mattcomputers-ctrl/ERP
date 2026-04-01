@@ -2,9 +2,51 @@
 
 namespace PrecisionInk\Controllers;
 
+use App\Services\AuditService;
+use App\Services\EmailService;
+
 abstract class BaseController
 {
     protected static ?\PDO $pdo = null;
+    protected ?AuditService $auditService = null;
+    protected ?EmailService $emailService = null;
+
+    /** @var array Static service container, set once at bootstrap time. */
+    private static array $container = [];
+
+    /**
+     * Register the service container (called once in public/index.php).
+     */
+    public static function setContainer(array $container): void
+    {
+        self::$container = $container;
+        if (isset($container['db'])) {
+            self::$pdo = $container['db'];
+        }
+    }
+
+    /**
+     * Constructor — pulls services from the static container.
+     * The Bramus router instantiates controllers with no args,
+     * so we use the static container instead of constructor injection.
+     */
+    public function __construct()
+    {
+        if (isset(self::$container['audit'])) {
+            $this->auditService = self::$container['audit'];
+        }
+        if (isset(self::$container['email'])) {
+            $this->emailService = self::$container['email'];
+        }
+    }
+
+    /**
+     * Get the shared PDO instance (for use in view partials).
+     */
+    public static function getSharedDb(): ?\PDO
+    {
+        return self::$pdo;
+    }
 
     /**
      * Get a shared PDO database connection.
@@ -99,7 +141,17 @@ abstract class BaseController
     }
 
     /**
+     * Get current user ID from session.
+     */
+    protected function currentUserId(): ?int
+    {
+        $user = $this->currentUser();
+        return $user ? (int)($user['id'] ?? 0) : null;
+    }
+
+    /**
      * Write an entry to the audit-log table.
+     * Uses AuditService if available, falls back to direct insert.
      */
     protected function auditLog(
         string $action,
@@ -108,6 +160,19 @@ abstract class BaseController
         mixed  $old = null,
         mixed  $new = null,
     ): void {
+        if ($this->auditService) {
+            $this->auditService->log(
+                $this->currentUserId(),
+                $action,
+                $module,
+                $recordId,
+                $old ?? [],
+                $new ?? []
+            );
+            return;
+        }
+
+        // Fallback: direct insert (backward compatibility)
         $user = $this->currentUser();
         $changes = null;
 
@@ -141,6 +206,51 @@ abstract class BaseController
             $changes,
             $_SERVER['REMOTE_ADDR'] ?? null,
         ]);
+    }
+
+    /**
+     * Convenience: log a CREATE event.
+     */
+    protected function auditCreate(string $module, int $recordId, array $data = []): void
+    {
+        $this->auditLog('CREATE', $module, $recordId, null, $data);
+    }
+
+    /**
+     * Convenience: log an UPDATE event with field-level diffs.
+     */
+    protected function auditUpdate(string $module, int $recordId, array $oldData, array $newData): void
+    {
+        $this->auditLog('UPDATE', $module, $recordId, $oldData, $newData);
+    }
+
+    /**
+     * Convenience: log a DELETE event.
+     */
+    protected function auditDelete(string $module, int $recordId): void
+    {
+        $this->auditLog('DELETE', $module, $recordId);
+    }
+
+    /**
+     * Send an email via EmailService.
+     */
+    protected function sendEmail(
+        string $templateType,
+        array $toAddresses,
+        array $mergeData = [],
+        ?string $attachmentPath = null,
+        ?string $attachmentName = null,
+        string $referenceType = '',
+        int $referenceId = 0
+    ): bool {
+        if (!$this->emailService) {
+            return false;
+        }
+        return $this->emailService->send(
+            $templateType, $toAddresses, $mergeData,
+            $attachmentPath, $attachmentName, $referenceType, $referenceId
+        );
     }
 
     /**

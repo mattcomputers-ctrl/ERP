@@ -11,6 +11,34 @@ $config = require __DIR__ . '/../config/config.php';
 // Start session
 session_start();
 
+// ── Service Container ──────────────────────────────────────────────
+// Build a shared PDO connection and instantiate core services once.
+// Controllers access these via BaseController::setContainer().
+try {
+    $pdo = new \PDO(
+        "mysql:host={$config['DB_HOST']};dbname={$config['DB_NAME']};charset=utf8mb4",
+        $config['DB_USER'],
+        $config['DB_PASS'],
+        [
+            \PDO::ATTR_ERRMODE            => \PDO::ERRMODE_EXCEPTION,
+            \PDO::ATTR_DEFAULT_FETCH_MODE  => \PDO::FETCH_ASSOC,
+            \PDO::ATTR_EMULATE_PREPARES    => false,
+        ]
+    );
+} catch (\PDOException $e) {
+    http_response_code(500);
+    echo 'Database connection failed.';
+    exit;
+}
+
+$container = [
+    'db'    => $pdo,
+    'audit' => new \App\Services\AuditService($pdo),
+    'email' => new \App\Services\EmailService($pdo, $_SESSION['user']['id'] ?? null),
+];
+
+\PrecisionInk\Controllers\BaseController::setContainer($container);
+
 // Initialise router
 $router = new \Bramus\Router\Router();
 

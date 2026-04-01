@@ -1065,12 +1065,6 @@ class SettingsController extends BaseController
     {
         $this->requireAdmin();
 
-        $keys = [
-            'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password',
-            'smtp_from_address', 'smtp_from_name', 'smtp_encryption',
-        ];
-        $settings = $this->getSettings($keys);
-
         $user = $this->currentUser();
         $toEmail = $user['email'] ?? '';
 
@@ -1079,37 +1073,21 @@ class SettingsController extends BaseController
             return;
         }
 
-        if (empty($settings['smtp_host'])) {
+        $smtpHost = $this->getSettings(['smtp_host'])['smtp_host'] ?? '';
+        if (empty($smtpHost)) {
             $this->jsonResponse(['success' => false, 'error' => 'SMTP host is not configured.']);
             return;
         }
 
-        try {
-            $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
-            $mail->isSMTP();
-            $mail->Host       = $settings['smtp_host'];
-            $mail->Port       = (int) ($settings['smtp_port'] ?: 587);
-            $mail->SMTPAuth   = !empty($settings['smtp_username']);
-            $mail->Username   = $settings['smtp_username'];
-            $mail->Password   = $this->decryptSmtpPassword($settings['smtp_password']);
-            $mail->SMTPSecure = $settings['smtp_encryption'] === 'ssl'
-                ? \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS
-                : \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+        $success = $this->sendEmail(
+            'notification',
+            [$toEmail],
+            ['subject' => 'Precision Ink ERP — SMTP Test', 'body' => 'Your SMTP configuration is working correctly.'],
+            null, null,
+            'smtp_test', 0
+        );
 
-            $mail->setFrom(
-                $settings['smtp_from_address'] ?: 'noreply@example.com',
-                $settings['smtp_from_name'] ?: 'Precision Ink ERP'
-            );
-            $mail->addAddress($toEmail);
-            $mail->Subject = 'Precision Ink ERP — SMTP Test';
-            $mail->Body    = 'This is a test email from Precision Ink ERP. If you received this, your SMTP settings are configured correctly.';
-            $mail->isHTML(false);
-            $mail->send();
-
-            $this->jsonResponse(['success' => true]);
-        } catch (\Exception $e) {
-            $this->jsonResponse(['success' => false, 'error' => $e->getMessage()]);
-        }
+        $this->jsonResponse(['success' => $success]);
     }
 
     private function encryptSmtpPassword(string $plain): string
@@ -1846,71 +1824,28 @@ class SettingsController extends BaseController
             return;
         }
 
-        $user = $this->currentUser();
-        $newStatus = 'FAILED';
-        $failureReason = null;
-
-        try {
-            // Attempt to send via EmailService
-            $smtpSettings = $this->getSettings([
-                'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password',
-                'smtp_from_address', 'smtp_from_name', 'smtp_encryption',
-            ]);
-
-            if (!empty($smtpSettings['smtp_host'])) {
-                $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
-                $mail->isSMTP();
-                $mail->Host       = $smtpSettings['smtp_host'];
-                $mail->Port       = (int) ($smtpSettings['smtp_port'] ?: 587);
-                $mail->SMTPAuth   = !empty($smtpSettings['smtp_username']);
-                $mail->Username   = $smtpSettings['smtp_username'];
-                $mail->Password   = $this->decryptSmtpPassword($smtpSettings['smtp_password']);
-                $mail->SMTPSecure = $smtpSettings['smtp_encryption'] === 'ssl'
-                    ? \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS
-                    : \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-
-                $mail->setFrom(
-                    $smtpSettings['smtp_from_address'] ?: 'noreply@example.com',
-                    $smtpSettings['smtp_from_name'] ?: 'Precision Ink ERP'
-                );
-
-                foreach (preg_split('/[\s,;]+/', $recipients) as $addr) {
-                    $addr = trim($addr);
-                    if ($addr !== '') {
-                        $mail->addAddress($addr);
-                    }
-                }
-
-                $mail->Subject = $original['subject'];
-                $mail->Body    = 'Resent: ' . $original['subject'];
-                $mail->isHTML(false);
-                $mail->send();
-                $newStatus = 'SENT';
-            } else {
-                $failureReason = 'SMTP not configured.';
+        // Parse recipient string into array
+        $toAddresses = [];
+        foreach (preg_split('/[\s,;]+/', $recipients) as $addr) {
+            $addr = trim($addr);
+            if ($addr !== '') {
+                $toAddresses[] = $addr;
             }
-        } catch (\Exception $e) {
-            $failureReason = $e->getMessage();
         }
 
-        // Log as new row
-        $this->db()->prepare(
-            'INSERT INTO outbound_email_log (sent_by, document_type, reference_type, reference_id, recipients, subject, status, failure_reason, attachment_filename) VALUES (?,?,?,?,?,?,?,?,?)'
-        )->execute([
-            $user['id'] ?? null,
+        // Resend via EmailService (which handles logging automatically)
+        $success = $this->sendEmail(
             $original['document_type'],
-            $original['reference_type'],
-            $original['reference_id'],
-            $recipients,
-            $original['subject'],
-            $newStatus,
-            $failureReason,
-            $original['attachment_filename'],
-        ]);
+            $toAddresses,
+            ['subject' => $original['subject'], 'body' => 'Resent: ' . $original['subject']],
+            null, null,
+            $original['reference_type'] ?? '',
+            (int)($original['reference_id'] ?? 0)
+        );
 
         $this->jsonResponse([
-            'success' => $newStatus === 'SENT',
-            'error'   => $failureReason,
+            'success' => $success,
+            'error'   => $success ? null : 'Failed to send email. Check SMTP configuration.',
         ]);
     }
 

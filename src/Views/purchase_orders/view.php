@@ -1,9 +1,8 @@
 <?php
 /**
- * Placeholder view template — custom fields section.
+ * Placeholder view template — purchase order record view.
  * This file will be expanded when the full module is built.
- * For now it provides the custom fields section that renders
- * when fields are defined for this record type.
+ * For now it provides the custom fields and email history sections.
  */
 ?>
 <!-- Custom Fields Section -->
@@ -13,4 +12,11 @@ $cfRecordId = $record['id'] ?? 0;
 if (isset($customFieldService)) {
     require __DIR__ . '/../partials/custom_fields_view.php';
 }
+?>
+
+<!-- Email History Section -->
+<?php
+$emailReferenceType = 'purchase_order';
+$emailReferenceId = $record['id'] ?? 0;
+require __DIR__ . '/../partials/email_history_tab.php';
 ?>
