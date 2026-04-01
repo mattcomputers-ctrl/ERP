@@ -1914,6 +1914,118 @@ class SettingsController extends BaseController
         ]);
     }
 
+    // ── User Activity Dashboard ──────────────────────────────────
+
+    public function userActivity(): void
+    {
+        $this->requireAdmin();
+
+        $timeout = (int) ($this->getSettings(['session_timeout_minutes'])['session_timeout_minutes'] ?: 30);
+
+        $stmt = $this->db()->prepare(
+            'SELECT s.*, u.username, u.full_name
+             FROM sessions s
+             JOIN users u ON s.user_id = u.id
+             WHERE s.last_activity > DATE_SUB(NOW(), INTERVAL ? MINUTE)
+             ORDER BY s.last_activity DESC'
+        );
+        $stmt->execute([$timeout]);
+        $activeSessions = $stmt->fetchAll();
+
+        $loginHistory = $this->db()->query(
+            'SELECT * FROM login_attempts ORDER BY attempted_at DESC LIMIT 20'
+        )->fetchAll();
+
+        $this->renderView('settings/_layout', [
+            'title'          => 'User Activity',
+            'section'        => 'user-activity',
+            'content'        => 'settings/user_activity',
+            'activeSessions' => $activeSessions,
+            'loginHistory'   => $loginHistory,
+            'timeout'        => $timeout,
+        ]);
+    }
+
+    public function forceLogout(string $sessionId): void
+    {
+        $this->requireAdmin();
+        $sessionId = (int) $sessionId;
+
+        // Get session info before deleting
+        $stmt = $this->db()->prepare(
+            'SELECT s.*, u.username FROM sessions s LEFT JOIN users u ON s.user_id = u.id WHERE s.id = ?'
+        );
+        $stmt->execute([$sessionId]);
+        $session = $stmt->fetch();
+
+        if (!$session) {
+            $this->toast('Session not found or already expired.', 'error');
+            $this->redirect('/settings/user-activity');
+            return;
+        }
+
+        $this->db()->prepare('DELETE FROM sessions WHERE id = ?')->execute([$sessionId]);
+
+        $currentUser = $this->currentUser();
+        $this->auditLog('DELETE', 'sessions', $sessionId,
+            ['user' => $session['username'], 'forced_logout_by' => $currentUser['username'] ?? 'admin'],
+            null
+        );
+
+        $this->toast('User "' . ($session['username'] ?? 'unknown') . '" has been logged out.');
+        $this->redirect('/settings/user-activity');
+    }
+
+    public function activeSessionsJson(): void
+    {
+        $this->requireAdmin();
+
+        $timeout = (int) ($this->getSettings(['session_timeout_minutes'])['session_timeout_minutes'] ?: 30);
+
+        $stmt = $this->db()->prepare(
+            'SELECT s.*, u.username, u.full_name
+             FROM sessions s
+             JOIN users u ON s.user_id = u.id
+             WHERE s.last_activity > DATE_SUB(NOW(), INTERVAL ? MINUTE)
+             ORDER BY s.last_activity DESC'
+        );
+        $stmt->execute([$timeout]);
+        $sessions = $stmt->fetchAll();
+
+        $html = '';
+        if (empty($sessions)) {
+            $html = '<tr><td colspan="6" style="text-align:center;color:#999;">No active sessions.</td></tr>';
+        } else {
+            foreach ($sessions as $s) {
+                $lastAct = strtotime($s['last_activity']);
+                $diff = max(0, time() - $lastAct);
+                if ($diff < 60) {
+                    $ago = 'Just now';
+                } elseif ($diff < 3600) {
+                    $ago = (int)($diff / 60) . ' min ago';
+                } else {
+                    $ago = (int)($diff / 3600) . ' hr ago';
+                }
+                $username = htmlspecialchars($s['username']);
+                $fullName = htmlspecialchars($s['full_name']);
+                $started = htmlspecialchars($s['started_at']);
+                $lastPage = htmlspecialchars($s['last_page'] ?? '—');
+                $id = (int)$s['id'];
+                $html .= "<tr>"
+                    . "<td>{$username}</td>"
+                    . "<td>{$fullName}</td>"
+                    . "<td>{$started}</td>"
+                    . "<td>{$ago}</td>"
+                    . "<td>{$lastPage}</td>"
+                    . "<td><form method=\"POST\" action=\"/settings/user-activity/force-logout/{$id}\" style=\"display:inline;\" onsubmit=\"return confirm('Force logout {$username}?');\">"
+                    . "<button type=\"submit\" class=\"btn btn-danger btn-sm\">Force Logout</button></form></td>"
+                    . "</tr>";
+            }
+        }
+
+        $this->jsonResponse(['html' => $html]);
+    }
+
     // ── System Settings Helpers ────────────────────────────────────
 
     /**

@@ -68,6 +68,7 @@
                 <span class="nav-link disabled">Groups &amp; Permissions <em>(coming soon)</em></span>
                 <a href="/settings/password-policy" class="nav-link <?= ($section ?? '') === 'password-policy' ? 'active' : '' ?>">Password Policy</a>
                 <a href="/settings/api-keys" class="nav-link <?= ($section ?? '') === 'api-keys' ? 'active' : '' ?>">API Keys</a>
+                <a href="/settings/user-activity" class="nav-link <?= ($section ?? '') === 'user-activity' ? 'active' : '' ?>">User Activity</a>
             </div>
 
             <div class="nav-group">
