@@ -52,7 +52,7 @@
             <div class="nav-group">
                 <h4 class="nav-group-title">Document</h4>
                 <a href="/settings/document-numbering" class="nav-link <?= ($section ?? '') === 'document-numbering' ? 'active' : '' ?>">Numbering Sequences</a>
-                <span class="nav-link disabled">Email Templates <em>(coming soon)</em></span>
+                <a href="/settings/email-templates" class="nav-link <?= ($section ?? '') === 'email-templates' ? 'active' : '' ?>">Email Templates</a>
                 <span class="nav-link disabled">Document Templates <em>(coming soon)</em></span>
             </div>
 
@@ -66,15 +66,21 @@
                 <h4 class="nav-group-title">Users &amp; Security</h4>
                 <span class="nav-link disabled">Users <em>(coming soon)</em></span>
                 <span class="nav-link disabled">Groups &amp; Permissions <em>(coming soon)</em></span>
-                <span class="nav-link disabled">Password Policy <em>(coming soon)</em></span>
+                <a href="/settings/password-policy" class="nav-link <?= ($section ?? '') === 'password-policy' ? 'active' : '' ?>">Password Policy</a>
                 <a href="/settings/api-keys" class="nav-link <?= ($section ?? '') === 'api-keys' ? 'active' : '' ?>">API Keys</a>
+            </div>
+
+            <div class="nav-group">
+                <h4 class="nav-group-title">Email &amp; Notifications</h4>
+                <a href="/settings/smtp" class="nav-link <?= ($section ?? '') === 'smtp' ? 'active' : '' ?>">SMTP Settings</a>
+                <a href="/settings/notifications" class="nav-link <?= ($section ?? '') === 'notifications' ? 'active' : '' ?>">Notifications</a>
             </div>
 
             <div class="nav-group">
                 <h4 class="nav-group-title">Advanced</h4>
                 <span class="nav-link disabled">Custom Fields <em>(coming soon)</em></span>
                 <span class="nav-link disabled">Announcements <em>(coming soon)</em></span>
-                <span class="nav-link disabled">Scheduled Reports <em>(coming soon)</em></span>
+                <a href="/settings/scheduled-reports" class="nav-link <?= ($section ?? '') === 'scheduled-reports' ? 'active' : '' ?>">Scheduled Reports</a>
             </div>
         </nav>
 

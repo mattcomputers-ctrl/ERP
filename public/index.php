@@ -190,6 +190,30 @@ $router->mount('/settings', function () use ($router) {
     // API Keys
     $router->get('/api-keys',            "{$c}@apiKeys");
     $router->post('/api-keys',           "{$c}@saveApiKey");
+
+    // SMTP Email Settings
+    $router->get('/smtp',                "{$c}@smtp");
+    $router->post('/smtp',               "{$c}@saveSmtp");
+    $router->post('/smtp/test',          "{$c}@testSmtp");
+
+    // Email Templates
+    $router->get('/email-templates',              "{$c}@emailTemplates");
+    $router->get('/email-templates/edit/(\w+)',   "{$c}@emailTemplateEdit");
+    $router->post('/email-templates/save/(\w+)',  "{$c}@saveEmailTemplate");
+    $router->post('/email-templates/signature',   "{$c}@saveEmailSignature");
+
+    // Password Policy
+    $router->get('/password-policy',     "{$c}@passwordPolicy");
+    $router->post('/password-policy',    "{$c}@savePasswordPolicy");
+
+    // Notification Settings
+    $router->get('/notifications',       "{$c}@notifications");
+    $router->post('/notifications',      "{$c}@saveNotifications");
+
+    // Scheduled Report Delivery
+    $router->get('/scheduled-reports',             "{$c}@scheduledReports");
+    $router->post('/scheduled-reports/save',       "{$c}@saveScheduledReport");
+    $router->post('/scheduled-reports/delete/(\d+)', "{$c}@deleteScheduledReport");
 });
 
 // Dispatch

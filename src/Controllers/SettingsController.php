@@ -1001,6 +1001,536 @@ class SettingsController extends BaseController
         $this->redirect('/settings/api-keys');
     }
 
+    // ── SMTP Email Settings ──────────────────────────────────────────
+
+    public function smtp(): void
+    {
+        $this->requireAdmin();
+
+        $keys = [
+            'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password',
+            'smtp_from_address', 'smtp_from_name', 'smtp_encryption',
+        ];
+        $settings = $this->getSettings($keys);
+        // Mask password — just indicate if set
+        $settings['smtp_password_set'] = !empty($settings['smtp_password']);
+        unset($settings['smtp_password']);
+
+        $this->renderView('settings/_layout', [
+            'title'    => 'SMTP Email Settings',
+            'section'  => 'smtp',
+            'content'  => 'settings/smtp',
+            'settings' => $settings,
+        ]);
+    }
+
+    public function saveSmtp(): void
+    {
+        $this->requireAdmin();
+
+        $keys = [
+            'smtp_host', 'smtp_port', 'smtp_username',
+            'smtp_from_address', 'smtp_from_name', 'smtp_encryption',
+        ];
+
+        $old = $this->getSettings(array_merge($keys, ['smtp_password']));
+        $new = [];
+
+        foreach ($keys as $key) {
+            $new[$key] = trim($_POST[$key] ?? '');
+        }
+
+        // Validate encryption value
+        if (!in_array($new['smtp_encryption'], ['tls', 'ssl'], true)) {
+            $new['smtp_encryption'] = 'tls';
+        }
+
+        // Handle password: only update if "change password" checkbox is checked
+        if (!empty($_POST['change_password'])) {
+            $plainPassword = $_POST['smtp_password'] ?? '';
+            if ($plainPassword !== '') {
+                $new['smtp_password'] = $this->encryptSmtpPassword($plainPassword);
+            } else {
+                $new['smtp_password'] = '';
+            }
+        }
+
+        $this->saveSettings($new);
+        $this->auditLog('UPDATE', 'settings_smtp', 0, $old, array_merge($old, $new));
+        $this->toast('SMTP settings saved successfully.');
+        $this->redirect('/settings/smtp');
+    }
+
+    public function testSmtp(): void
+    {
+        $this->requireAdmin();
+
+        $keys = [
+            'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password',
+            'smtp_from_address', 'smtp_from_name', 'smtp_encryption',
+        ];
+        $settings = $this->getSettings($keys);
+
+        $user = $this->currentUser();
+        $toEmail = $user['email'] ?? '';
+
+        if (empty($toEmail)) {
+            $this->jsonResponse(['success' => false, 'error' => 'Your user account has no email address configured.']);
+            return;
+        }
+
+        if (empty($settings['smtp_host'])) {
+            $this->jsonResponse(['success' => false, 'error' => 'SMTP host is not configured.']);
+            return;
+        }
+
+        try {
+            $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+            $mail->isSMTP();
+            $mail->Host       = $settings['smtp_host'];
+            $mail->Port       = (int) ($settings['smtp_port'] ?: 587);
+            $mail->SMTPAuth   = !empty($settings['smtp_username']);
+            $mail->Username   = $settings['smtp_username'];
+            $mail->Password   = $this->decryptSmtpPassword($settings['smtp_password']);
+            $mail->SMTPSecure = $settings['smtp_encryption'] === 'ssl'
+                ? \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS
+                : \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+
+            $mail->setFrom(
+                $settings['smtp_from_address'] ?: 'noreply@example.com',
+                $settings['smtp_from_name'] ?: 'Precision Ink ERP'
+            );
+            $mail->addAddress($toEmail);
+            $mail->Subject = 'Precision Ink ERP — SMTP Test';
+            $mail->Body    = 'This is a test email from Precision Ink ERP. If you received this, your SMTP settings are configured correctly.';
+            $mail->isHTML(false);
+            $mail->send();
+
+            $this->jsonResponse(['success' => true]);
+        } catch (\Exception $e) {
+            $this->jsonResponse(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    private function encryptSmtpPassword(string $plain): string
+    {
+        $config = require __DIR__ . '/../../config/config.php';
+        $key = hash('sha256', $config['APP_KEY'] ?? 'default-key', true);
+        $iv = random_bytes(16);
+        $encrypted = openssl_encrypt($plain, 'aes-256-cbc', $key, 0, $iv);
+        return base64_encode($iv . '::' . $encrypted);
+    }
+
+    private function decryptSmtpPassword(string $encrypted): string
+    {
+        if (empty($encrypted)) {
+            return '';
+        }
+        $config = require __DIR__ . '/../../config/config.php';
+        $key = hash('sha256', $config['APP_KEY'] ?? 'default-key', true);
+        $decoded = base64_decode($encrypted);
+        $parts = explode('::', $decoded, 2);
+        if (count($parts) !== 2) {
+            return '';
+        }
+        [$iv, $cipherText] = $parts;
+        $decrypted = openssl_decrypt($cipherText, 'aes-256-cbc', $key, 0, $iv);
+        return $decrypted !== false ? $decrypted : '';
+    }
+
+    // ── Email Templates ───────────────────────────────────────────────
+
+    private function getMergeFields(): array
+    {
+        return [
+            'invoice' => ['{customer_name}', '{invoice_number}', '{order_number}', '{amount_due}', '{due_date}', '{rep_name}'],
+            'order_acknowledgment' => ['{customer_name}', '{order_number}', '{promised_ship_date}', '{rep_name}'],
+            'quote' => ['{customer_name}', '{quote_number}', '{expiration_date}', '{rep_name}'],
+            'coa' => ['{customer_name}', '{batch_number}', '{item_description}', '{rep_name}'],
+            'purchase_order' => ['{supplier_name}', '{po_number}', '{expected_delivery}', '{rep_name}'],
+            'scar' => ['{supplier_name}', '{scar_number}', '{issue_description}', '{due_date}'],
+            'credit_memo' => ['{customer_name}', '{rma_number}', '{credit_amount}'],
+        ];
+    }
+
+    public function emailTemplates(): void
+    {
+        $this->requireAdmin();
+
+        $this->ensureDefaultEmailTemplates();
+
+        $templates = $this->db()->query(
+            'SELECT id, template_type, subject, active FROM email_templates ORDER BY template_type ASC'
+        )->fetchAll();
+
+        $signature = $this->getSettings(['email_signature']);
+
+        $this->renderView('settings/_layout', [
+            'title'     => 'Email Templates',
+            'section'   => 'email-templates',
+            'content'   => 'settings/email_templates',
+            'templates' => $templates,
+            'signature' => $signature['email_signature'] ?? '',
+        ]);
+    }
+
+    public function emailTemplateEdit(string $type): void
+    {
+        $this->requireAdmin();
+
+        $this->ensureDefaultEmailTemplates();
+
+        $stmt = $this->db()->prepare('SELECT * FROM email_templates WHERE template_type = ?');
+        $stmt->execute([$type]);
+        $template = $stmt->fetch();
+
+        if (!$template) {
+            $this->toast('Template not found.', 'error');
+            $this->redirect('/settings/email-templates');
+            return;
+        }
+
+        $mergeFields = $this->getMergeFields();
+
+        $this->renderView('settings/_layout', [
+            'title'       => 'Edit Email Template',
+            'section'     => 'email-templates',
+            'content'     => 'settings/email_template_edit',
+            'template'    => $template,
+            'mergeFields' => $mergeFields[$type] ?? [],
+        ]);
+    }
+
+    public function saveEmailTemplate(string $type): void
+    {
+        $this->requireAdmin();
+
+        $stmt = $this->db()->prepare('SELECT * FROM email_templates WHERE template_type = ?');
+        $stmt->execute([$type]);
+        $old = $stmt->fetch();
+
+        if (!$old) {
+            $this->toast('Template not found.', 'error');
+            $this->redirect('/settings/email-templates');
+            return;
+        }
+
+        $subject = trim($_POST['subject'] ?? '');
+        $body = $_POST['body'] ?? '';
+        $active = !empty($_POST['active']) ? 1 : 0;
+
+        $this->db()->prepare(
+            'UPDATE email_templates SET subject = ?, body = ?, active = ? WHERE template_type = ?'
+        )->execute([$subject, $body, $active, $type]);
+
+        $this->auditLog('UPDATE', 'email_templates', $old['id'],
+            ['subject' => $old['subject'], 'active' => $old['active']],
+            ['subject' => $subject, 'active' => $active]
+        );
+        $this->toast('Email template saved successfully.');
+        $this->redirect('/settings/email-templates');
+    }
+
+    public function saveEmailSignature(): void
+    {
+        $this->requireAdmin();
+
+        $old = $this->getSettings(['email_signature']);
+        $signature = $_POST['email_signature'] ?? '';
+
+        $this->saveSettings(['email_signature' => $signature]);
+        $this->auditLog('UPDATE', 'settings_email_signature', 0, $old, ['email_signature' => $signature]);
+        $this->toast('Email signature saved successfully.');
+        $this->redirect('/settings/email-templates');
+    }
+
+    private function ensureDefaultEmailTemplates(): void
+    {
+        $count = (int) $this->db()->query('SELECT COUNT(*) FROM email_templates')->fetchColumn();
+        if ($count === 0) {
+            // Insert defaults — they should already exist from migration, but ensure
+            $defaults = [
+                ['invoice', 'Invoice {invoice_number} from Precision Ink', '<p>Dear {customer_name},</p><p>Please find attached invoice <strong>{invoice_number}</strong> for order {order_number}.</p><p>Amount due: <strong>{amount_due}</strong><br>Due date: {due_date}</p><p>Thank you for your business.</p><p>Best regards,<br>{rep_name}</p>'],
+                ['order_acknowledgment', 'Order Acknowledgment — {order_number}', '<p>Dear {customer_name},</p><p>Thank you for your order <strong>{order_number}</strong>.</p><p>Promised ship date: <strong>{promised_ship_date}</strong></p><p>Best regards,<br>{rep_name}</p>'],
+                ['quote', 'Quote {quote_number} from Precision Ink', '<p>Dear {customer_name},</p><p>Please find attached quote <strong>{quote_number}</strong>.</p><p>This quote is valid until <strong>{expiration_date}</strong>.</p><p>Best regards,<br>{rep_name}</p>'],
+                ['coa', 'Certificate of Analysis — {batch_number}', '<p>Dear {customer_name},</p><p>Please find attached the Certificate of Analysis for batch <strong>{batch_number}</strong> — {item_description}.</p><p>Best regards,<br>{rep_name}</p>'],
+                ['purchase_order', 'Purchase Order {po_number} — Precision Ink', '<p>Dear {supplier_name},</p><p>Please find attached purchase order <strong>{po_number}</strong>.</p><p>Expected delivery: <strong>{expected_delivery}</strong></p><p>Best regards,<br>{rep_name}</p>'],
+                ['scar', 'Supplier Corrective Action Request — {scar_number}', '<p>Dear {supplier_name},</p><p>SCAR <strong>{scar_number}</strong> has been issued regarding:</p><p>{issue_description}</p><p>Please respond by <strong>{due_date}</strong>.</p>'],
+                ['credit_memo', 'Credit Memo for RMA {rma_number}', '<p>Dear {customer_name},</p><p>A credit memo has been issued for RMA <strong>{rma_number}</strong>.</p><p>Credit amount: <strong>{credit_amount}</strong></p>'],
+            ];
+            $stmt = $this->db()->prepare('INSERT IGNORE INTO email_templates (template_type, subject, body) VALUES (?, ?, ?)');
+            foreach ($defaults as $d) {
+                $stmt->execute($d);
+            }
+        }
+    }
+
+    // ── Password Policy ───────────────────────────────────────────────
+
+    public function passwordPolicy(): void
+    {
+        $this->requireAdmin();
+
+        $keys = [
+            'password_min_length', 'password_require_uppercase',
+            'password_require_number', 'password_require_special',
+            'password_expiry_days', 'password_history_count',
+        ];
+        $settings = $this->getSettings($keys);
+
+        // Apply defaults
+        if ($settings['password_min_length'] === '') $settings['password_min_length'] = '10';
+        if ($settings['password_require_uppercase'] === '') $settings['password_require_uppercase'] = '1';
+        if ($settings['password_require_number'] === '') $settings['password_require_number'] = '1';
+        if ($settings['password_require_special'] === '') $settings['password_require_special'] = '1';
+        if ($settings['password_expiry_days'] === '') $settings['password_expiry_days'] = '0';
+        if ($settings['password_history_count'] === '') $settings['password_history_count'] = '5';
+
+        $this->renderView('settings/_layout', [
+            'title'    => 'Password Policy',
+            'section'  => 'password-policy',
+            'content'  => 'settings/password_policy',
+            'settings' => $settings,
+        ]);
+    }
+
+    public function savePasswordPolicy(): void
+    {
+        $this->requireAdmin();
+
+        $keys = [
+            'password_min_length', 'password_require_uppercase',
+            'password_require_number', 'password_require_special',
+            'password_expiry_days', 'password_history_count',
+        ];
+
+        $old = $this->getSettings($keys);
+        $new = [];
+        $errors = [];
+
+        $minLength = (int) ($_POST['password_min_length'] ?? 10);
+        if ($minLength < 6 || $minLength > 128) {
+            $errors[] = 'Minimum length must be between 6 and 128.';
+        }
+        $new['password_min_length'] = (string) $minLength;
+
+        $new['password_require_uppercase'] = !empty($_POST['password_require_uppercase']) ? '1' : '0';
+        $new['password_require_number'] = !empty($_POST['password_require_number']) ? '1' : '0';
+        $new['password_require_special'] = !empty($_POST['password_require_special']) ? '1' : '0';
+
+        $expiryDays = (int) ($_POST['password_expiry_days'] ?? 0);
+        if ($expiryDays < 0) $expiryDays = 0;
+        $new['password_expiry_days'] = (string) $expiryDays;
+
+        $historyCount = (int) ($_POST['password_history_count'] ?? 5);
+        if ($historyCount < 0) $historyCount = 0;
+        $new['password_history_count'] = (string) $historyCount;
+
+        if ($errors) {
+            $this->toast(implode(' ', $errors), 'error');
+            $this->redirect('/settings/password-policy');
+            return;
+        }
+
+        $this->saveSettings($new);
+        $this->auditLog('UPDATE', 'settings_password_policy', 0, $old, $new);
+        $this->toast('Password policy saved successfully.');
+        $this->redirect('/settings/password-policy');
+    }
+
+    // ── Notification Settings ─────────────────────────────────────────
+
+    private function getAlertTypeLabels(): array
+    {
+        return [
+            'low_stock'                   => 'Low Stock Alert',
+            'batch_overdue'               => 'Batch Overdue',
+            'credit_limit_warning'        => 'Credit Limit Warning',
+            'credit_override_used'        => 'Credit Override Used',
+            'cost_change'                 => 'Cost Change Alert',
+            'quote_expiring'              => 'Quote Expiring Soon',
+            'orders_open_too_long'        => 'Orders Open Too Long',
+            'orders_approaching_ship_date'=> 'Orders Approaching Ship Date',
+            'task_overdue'                => 'Task Overdue',
+            'batch_cost_variance'         => 'Batch Cost Variance',
+        ];
+    }
+
+    public function notifications(): void
+    {
+        $this->requireAdmin();
+
+        $this->ensureDefaultNotifications();
+
+        $alerts = $this->db()->query(
+            'SELECT * FROM notifications_config ORDER BY id ASC'
+        )->fetchAll();
+
+        $labels = $this->getAlertTypeLabels();
+
+        $this->renderView('settings/_layout', [
+            'title'  => 'Notification Settings',
+            'section'=> 'notifications',
+            'content'=> 'settings/notifications',
+            'alerts' => $alerts,
+            'labels' => $labels,
+        ]);
+    }
+
+    public function saveNotifications(): void
+    {
+        $this->requireAdmin();
+
+        $alerts = $this->db()->query('SELECT * FROM notifications_config ORDER BY id ASC')->fetchAll();
+        $oldData = [];
+        $newData = [];
+
+        foreach ($alerts as $alert) {
+            $id = $alert['id'];
+            $type = $alert['alert_type'];
+            $oldData[$type] = $alert;
+
+            $enabled = !empty($_POST["enabled_{$id}"]) ? 1 : 0;
+            $recipients = trim($_POST["recipients_{$id}"] ?? '');
+            $threshold = $_POST["threshold_{$id}"] ?? null;
+            if ($threshold !== null && $threshold !== '') {
+                $threshold = (float) $threshold;
+            } else {
+                $threshold = $alert['threshold_value'];
+            }
+
+            $this->db()->prepare(
+                'UPDATE notifications_config SET enabled = ?, recipients = ?, threshold_value = ? WHERE id = ?'
+            )->execute([$enabled, $recipients ?: null, $threshold, $id]);
+
+            $newData[$type] = [
+                'enabled' => $enabled,
+                'recipients' => $recipients,
+                'threshold_value' => $threshold,
+            ];
+        }
+
+        $this->auditLog('UPDATE', 'notifications_config', 0, $oldData, $newData);
+        $this->toast('Notification settings saved successfully.');
+        $this->redirect('/settings/notifications');
+    }
+
+    private function ensureDefaultNotifications(): void
+    {
+        $count = (int) $this->db()->query('SELECT COUNT(*) FROM notifications_config')->fetchColumn();
+        if ($count === 0) {
+            $defaults = [
+                ['low_stock', 1, null, null, null],
+                ['batch_overdue', 1, null, null, null],
+                ['credit_limit_warning', 1, null, null, null],
+                ['credit_override_used', 1, null, null, null],
+                ['cost_change', 1, null, 5.00, 'percent'],
+                ['quote_expiring', 1, null, 3.00, 'days'],
+                ['orders_open_too_long', 1, null, 14.00, 'days'],
+                ['orders_approaching_ship_date', 1, null, 3.00, 'days'],
+                ['task_overdue', 1, null, null, null],
+                ['batch_cost_variance', 1, null, 10.00, 'percent'],
+            ];
+            $stmt = $this->db()->prepare(
+                'INSERT IGNORE INTO notifications_config (alert_type, enabled, recipients, threshold_value, threshold_unit) VALUES (?, ?, ?, ?, ?)'
+            );
+            foreach ($defaults as $d) {
+                $stmt->execute($d);
+            }
+        }
+    }
+
+    // ── Scheduled Report Delivery ─────────────────────────────────────
+
+    public function scheduledReports(): void
+    {
+        $this->requireAdmin();
+
+        $reports = $this->db()->query(
+            'SELECT * FROM scheduled_reports ORDER BY report_name ASC'
+        )->fetchAll();
+
+        $this->renderView('settings/_layout', [
+            'title'   => 'Scheduled Reports',
+            'section' => 'scheduled-reports',
+            'content' => 'settings/scheduled_reports',
+            'reports' => $reports,
+        ]);
+    }
+
+    public function saveScheduledReport(): void
+    {
+        $this->requireAdmin();
+
+        $id = (int) ($_POST['id'] ?? 0);
+        $reportName = trim($_POST['report_name'] ?? '');
+        $scheduleType = $_POST['schedule_type'] ?? 'DAILY';
+        $scheduleDay = ($_POST['schedule_day'] ?? '') !== '' ? (int) $_POST['schedule_day'] : null;
+        $scheduleTime = trim($_POST['schedule_time'] ?? '06:00');
+        $outputFormat = $_POST['output_format'] ?? 'CSV';
+        $recipients = trim($_POST['recipients'] ?? '');
+        $active = !empty($_POST['active']) ? 1 : 0;
+
+        $errors = [];
+        if ($reportName === '') $errors[] = 'Report name is required.';
+        if ($recipients === '') $errors[] = 'Recipients are required.';
+        if (!in_array($scheduleType, ['DAILY', 'WEEKLY', 'MONTHLY'], true)) $errors[] = 'Invalid schedule type.';
+        if (!in_array($outputFormat, ['CSV', 'PDF'], true)) $errors[] = 'Invalid output format.';
+        if (!preg_match('/^\d{2}:\d{2}$/', $scheduleTime)) $errors[] = 'Invalid time format (HH:MM).';
+
+        if ($errors) {
+            $this->toast(implode(' ', $errors), 'error');
+            $this->redirect('/settings/scheduled-reports');
+            return;
+        }
+
+        if ($id > 0) {
+            // Update
+            $stmt = $this->db()->prepare('SELECT * FROM scheduled_reports WHERE id = ?');
+            $stmt->execute([$id]);
+            $old = $stmt->fetch();
+
+            $this->db()->prepare(
+                'UPDATE scheduled_reports SET report_name=?, schedule_type=?, schedule_day=?, schedule_time=?, output_format=?, recipients=?, active=? WHERE id=?'
+            )->execute([$reportName, $scheduleType, $scheduleDay, $scheduleTime, $outputFormat, $recipients, $active, $id]);
+
+            $this->auditLog('UPDATE', 'scheduled_reports', $id, $old, [
+                'report_name' => $reportName, 'schedule_type' => $scheduleType,
+                'schedule_day' => $scheduleDay, 'schedule_time' => $scheduleTime,
+                'output_format' => $outputFormat, 'recipients' => $recipients, 'active' => $active,
+            ]);
+            $this->toast('Scheduled report updated.');
+        } else {
+            // Insert
+            $this->db()->prepare(
+                'INSERT INTO scheduled_reports (report_name, schedule_type, schedule_day, schedule_time, output_format, recipients, active) VALUES (?,?,?,?,?,?,?)'
+            )->execute([$reportName, $scheduleType, $scheduleDay, $scheduleTime, $outputFormat, $recipients, $active]);
+            $newId = (int) $this->db()->lastInsertId();
+            $this->auditLog('CREATE', 'scheduled_reports', $newId);
+            $this->toast('Scheduled report added.');
+        }
+
+        $this->redirect('/settings/scheduled-reports');
+    }
+
+    public function deleteScheduledReport(string $id): void
+    {
+        $this->requireAdmin();
+        $id = (int) $id;
+
+        $stmt = $this->db()->prepare('SELECT * FROM scheduled_reports WHERE id = ?');
+        $stmt->execute([$id]);
+        $old = $stmt->fetch();
+
+        if ($old) {
+            $this->db()->prepare('DELETE FROM scheduled_reports WHERE id = ?')->execute([$id]);
+            $this->auditLog('DELETE', 'scheduled_reports', $id, $old);
+            $this->toast('Scheduled report deleted.');
+        }
+
+        $this->redirect('/settings/scheduled-reports');
+    }
+
     // ── System Settings Helpers ────────────────────────────────────
 
     /**
