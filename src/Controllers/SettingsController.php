@@ -2184,6 +2184,167 @@ class SettingsController extends BaseController
         $this->jsonResponse(['success' => true]);
     }
 
+    // ── Custom Fields Management ──────────────────────────────────
+
+    private function getRecordTypes(): array
+    {
+        return [
+            'items'           => 'Items',
+            'customers'       => 'Customers',
+            'suppliers'       => 'Suppliers',
+            'contacts'        => 'Contacts',
+            'sales_orders'    => 'Sales Orders',
+            'purchase_orders' => 'Purchase Orders',
+            'batch_tickets'   => 'Batch Tickets',
+            'shipments'       => 'Shipments',
+        ];
+    }
+
+    public function customFields(string $recordType = 'items'): void
+    {
+        $this->requireAdmin();
+
+        $recordTypes = $this->getRecordTypes();
+        if (!isset($recordTypes[$recordType])) {
+            $recordType = 'items';
+        }
+
+        $stmt = $this->db()->prepare(
+            'SELECT * FROM custom_field_definitions WHERE record_type = ? ORDER BY display_sequence ASC, id ASC'
+        );
+        $stmt->execute([$recordType]);
+        $fields = $stmt->fetchAll();
+
+        foreach ($fields as &$f) {
+            if ($f['options']) {
+                $f['options_raw'] = $f['options'];
+                $f['options'] = json_decode($f['options'], true);
+            } else {
+                $f['options_raw'] = null;
+                $f['options'] = [];
+            }
+        }
+        unset($f);
+
+        $this->renderView('settings/_layout', [
+            'title'       => 'Custom Fields',
+            'section'     => 'custom-fields',
+            'content'     => 'settings/custom_fields',
+            'fields'      => $fields,
+            'recordType'  => $recordType,
+            'recordTypes' => $recordTypes,
+        ]);
+    }
+
+    public function saveCustomField(): void
+    {
+        $this->requireAdmin();
+
+        $id              = (int) ($_POST['id'] ?? 0);
+        $recordType      = trim($_POST['record_type'] ?? '');
+        $label           = trim($_POST['label'] ?? '');
+        $fieldType       = trim($_POST['field_type'] ?? 'TEXT');
+        $optionsRaw      = trim($_POST['options'] ?? '');
+        $isRequired      = !empty($_POST['is_required']) ? 1 : 0;
+        $displaySequence = (int) ($_POST['display_sequence'] ?? 0);
+        $helpText        = trim($_POST['help_text'] ?? '') ?: null;
+
+        $validTypes = ['TEXT', 'NUMBER', 'DATE', 'YES_NO', 'DROPDOWN', 'MULTI_SELECT'];
+        if (!in_array($fieldType, $validTypes, true)) {
+            $this->jsonResponse(['success' => false, 'error' => 'Invalid field type.']);
+            return;
+        }
+
+        $recordTypes = $this->getRecordTypes();
+        if (!isset($recordTypes[$recordType])) {
+            $this->jsonResponse(['success' => false, 'error' => 'Invalid record type.']);
+            return;
+        }
+
+        if ($label === '') {
+            $this->jsonResponse(['success' => false, 'error' => 'Label is required.']);
+            return;
+        }
+
+        // Check label uniqueness within record type
+        $uniqueStmt = $this->db()->prepare(
+            'SELECT id FROM custom_field_definitions WHERE record_type = ? AND label = ? AND id != ?'
+        );
+        $uniqueStmt->execute([$recordType, $label, $id]);
+        if ($uniqueStmt->fetch()) {
+            $this->jsonResponse(['success' => false, 'error' => 'A field with this label already exists for this record type.']);
+            return;
+        }
+
+        // Parse options for DROPDOWN / MULTI_SELECT
+        $options = null;
+        if (in_array($fieldType, ['DROPDOWN', 'MULTI_SELECT'], true) && $optionsRaw !== '') {
+            $optionsList = array_filter(array_map('trim', preg_split('/[\r\n]+/', $optionsRaw)));
+            $options = json_encode(array_values($optionsList));
+        }
+
+        if ($id > 0) {
+            // Check if field_type is being changed and values exist
+            $oldStmt = $this->db()->prepare('SELECT * FROM custom_field_definitions WHERE id = ?');
+            $oldStmt->execute([$id]);
+            $old = $oldStmt->fetch();
+
+            if ($old && $old['field_type'] !== $fieldType) {
+                $valCount = $this->db()->prepare(
+                    'SELECT COUNT(*) FROM custom_field_values WHERE field_definition_id = ?'
+                );
+                $valCount->execute([$id]);
+                if ((int) $valCount->fetchColumn() > 0) {
+                    $this->jsonResponse([
+                        'success' => false,
+                        'error' => 'Cannot change field type — existing values are stored for this field.',
+                    ]);
+                    return;
+                }
+            }
+
+            $this->db()->prepare(
+                'UPDATE custom_field_definitions SET label=?, field_type=?, options=?, is_required=?, display_sequence=?, help_text=? WHERE id=?'
+            )->execute([$label, $fieldType, $options, $isRequired, $displaySequence, $helpText, $id]);
+
+            $this->auditLog('UPDATE', 'custom_field_definitions', $id, $old ?? [], [
+                'label' => $label, 'field_type' => $fieldType, 'is_required' => $isRequired,
+            ]);
+        } else {
+            $this->db()->prepare(
+                'INSERT INTO custom_field_definitions (record_type, label, field_type, options, is_required, display_sequence, help_text) VALUES (?,?,?,?,?,?,?)'
+            )->execute([$recordType, $label, $fieldType, $options, $isRequired, $displaySequence, $helpText]);
+            $id = (int) $this->db()->lastInsertId();
+            $this->auditLog('CREATE', 'custom_field_definitions', $id);
+        }
+
+        $this->jsonResponse(['success' => true, 'id' => $id]);
+    }
+
+    public function deactivateCustomField(string $id): void
+    {
+        $this->requireAdmin();
+        $id = (int) $id;
+
+        $stmt = $this->db()->prepare('SELECT * FROM custom_field_definitions WHERE id = ?');
+        $stmt->execute([$id]);
+        $old = $stmt->fetch();
+
+        if (!$old) {
+            $this->jsonResponse(['success' => false, 'error' => 'Field not found.'], 404);
+            return;
+        }
+
+        $newActive = $old['active'] ? 0 : 1;
+        $this->db()->prepare('UPDATE custom_field_definitions SET active = ? WHERE id = ?')->execute([$newActive, $id]);
+        $this->auditLog('UPDATE', 'custom_field_definitions', $id,
+            ['active' => $old['active']],
+            ['active' => $newActive]
+        );
+
+        $this->jsonResponse(['success' => true, 'active' => $newActive]);
+    }
+
     // ── System Settings Helpers ────────────────────────────────────
 
     /**
