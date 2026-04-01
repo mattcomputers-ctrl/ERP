@@ -14,6 +14,9 @@ session_start();
 // Initialise router
 $router = new \Bramus\Router\Router();
 
+// ── Dashboard ──────────────────────────────────────────────────────
+$router->get('/', 'PrecisionInk\\Controllers\\DashboardController@index');
+
 // ── Auth ────────────────────────────────────────────────────────────
 $router->mount('/auth', function () use ($router) {
     // TODO: login, logout, password reset

@@ -87,7 +87,7 @@
             <div class="nav-group">
                 <h4 class="nav-group-title">Advanced</h4>
                 <span class="nav-link disabled">Custom Fields <em>(coming soon)</em></span>
-                <span class="nav-link disabled">Announcements <em>(coming soon)</em></span>
+                <a href="/settings/announcements" class="nav-link <?= ($section ?? '') === 'announcements' ? 'active' : '' ?>">Announcements</a>
                 <a href="/settings/scheduled-reports" class="nav-link <?= ($section ?? '') === 'scheduled-reports' ? 'active' : '' ?>">Scheduled Reports</a>
             </div>
         </nav>

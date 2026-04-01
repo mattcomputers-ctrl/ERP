@@ -2026,6 +2026,164 @@ class SettingsController extends BaseController
         $this->jsonResponse(['html' => $html]);
     }
 
+    // ── Announcements ─────────────────────────────────────────────
+
+    public function announcements(): void
+    {
+        $this->requireAdmin();
+
+        $rows = $this->db()->query(
+            'SELECT a.*, u.username AS created_by_name
+             FROM announcements a
+             LEFT JOIN users u ON a.created_by = u.id
+             ORDER BY a.start_date DESC, a.id DESC'
+        )->fetchAll();
+
+        // Load target group names and IDs for non-target_all announcements
+        foreach ($rows as &$row) {
+            $row['target_groups'] = [];
+            $row['_group_ids'] = [];
+            if (!$row['target_all']) {
+                $stmt = $this->db()->prepare(
+                    'SELECT atg.group_id, g.name FROM announcement_target_groups atg
+                     JOIN `groups` g ON atg.group_id = g.id
+                     WHERE atg.announcement_id = ?
+                     ORDER BY g.name'
+                );
+                $stmt->execute([$row['id']]);
+                $grps = $stmt->fetchAll();
+                $row['target_groups'] = array_column($grps, 'name');
+                $row['_group_ids'] = array_map('intval', array_column($grps, 'group_id'));
+            }
+        }
+        unset($row);
+
+        $groups = $this->db()->query('SELECT id, name FROM `groups` WHERE active = 1 ORDER BY name')->fetchAll();
+
+        $this->renderView('settings/_layout', [
+            'title'  => 'Announcements',
+            'section'=> 'announcements',
+            'content'=> 'settings/announcements',
+            'rows'   => $rows,
+            'groups' => $groups,
+        ]);
+    }
+
+    public function saveAnnouncement(): void
+    {
+        $this->requireAdmin();
+
+        $id        = (int) ($_POST['id'] ?? 0);
+        $title     = trim($_POST['title'] ?? '');
+        $message   = $_POST['message'] ?? '';
+        $startDate = trim($_POST['start_date'] ?? '');
+        $endDate   = trim($_POST['end_date'] ?? '') ?: null;
+        $targetAll = !empty($_POST['target_all']) ? 1 : 0;
+        $priority  = $_POST['priority'] ?? 'INFO';
+        $active    = !empty($_POST['active']) ? 1 : 0;
+        $groupIds  = $_POST['group_ids'] ?? [];
+
+        if (!in_array($priority, ['INFO', 'WARNING', 'URGENT'], true)) {
+            $priority = 'INFO';
+        }
+
+        $errors = [];
+        if ($title === '') $errors[] = 'Title is required.';
+        if ($startDate === '') $errors[] = 'Start date is required.';
+
+        if ($errors) {
+            $this->jsonResponse(['success' => false, 'error' => implode(' ', $errors)]);
+            return;
+        }
+
+        $user = $this->currentUser();
+
+        if ($id > 0) {
+            // Update
+            $stmt = $this->db()->prepare('SELECT * FROM announcements WHERE id = ?');
+            $stmt->execute([$id]);
+            $old = $stmt->fetch();
+
+            $this->db()->prepare(
+                'UPDATE announcements SET title=?, message=?, start_date=?, end_date=?, target_all=?, priority=?, active=? WHERE id=?'
+            )->execute([$title, $message, $startDate, $endDate, $targetAll, $priority, $active, $id]);
+
+            $this->auditLog('UPDATE', 'announcements', $id, $old, [
+                'title' => $title, 'priority' => $priority, 'active' => $active,
+            ]);
+        } else {
+            // Insert
+            $this->db()->prepare(
+                'INSERT INTO announcements (title, message, start_date, end_date, target_all, priority, active, created_by) VALUES (?,?,?,?,?,?,?,?)'
+            )->execute([$title, $message, $startDate, $endDate, $targetAll, $priority, $active, $user['id'] ?? null]);
+            $id = (int) $this->db()->lastInsertId();
+            $this->auditLog('CREATE', 'announcements', $id);
+        }
+
+        // Update target groups
+        $this->db()->prepare('DELETE FROM announcement_target_groups WHERE announcement_id = ?')->execute([$id]);
+        if (!$targetAll && !empty($groupIds)) {
+            $stmt = $this->db()->prepare('INSERT INTO announcement_target_groups (announcement_id, group_id) VALUES (?, ?)');
+            foreach ($groupIds as $gid) {
+                $gid = (int) $gid;
+                if ($gid > 0) {
+                    $stmt->execute([$id, $gid]);
+                }
+            }
+        }
+
+        $this->jsonResponse(['success' => true, 'id' => $id]);
+    }
+
+    public function deleteAnnouncement(string $id): void
+    {
+        $this->requireAdmin();
+        $id = (int) $id;
+
+        $stmt = $this->db()->prepare('SELECT * FROM announcements WHERE id = ?');
+        $stmt->execute([$id]);
+        $old = $stmt->fetch();
+
+        if (!$old) {
+            $this->jsonResponse(['success' => false, 'error' => 'Announcement not found.'], 404);
+            return;
+        }
+
+        // Check if dismissals exist
+        $dismissCount = (int) $this->db()->prepare('SELECT COUNT(*) FROM announcement_dismissals WHERE announcement_id = ?');
+        $dismissCount->execute([$id]);
+        $hasDismissals = (int) $dismissCount->fetchColumn() > 0;
+
+        if ($hasDismissals) {
+            // Soft delete
+            $this->db()->prepare('UPDATE announcements SET active = 0 WHERE id = ?')->execute([$id]);
+            $this->auditLog('UPDATE', 'announcements', $id, ['active' => 1], ['active' => 0]);
+        } else {
+            // Hard delete
+            $this->db()->prepare('DELETE FROM announcement_target_groups WHERE announcement_id = ?')->execute([$id]);
+            $this->db()->prepare('DELETE FROM announcements WHERE id = ?')->execute([$id]);
+            $this->auditLog('DELETE', 'announcements', $id, $old);
+        }
+
+        $this->jsonResponse(['success' => true]);
+    }
+
+    public function dismissAnnouncement(string $id): void
+    {
+        $id = (int) $id;
+        $user = $this->currentUser();
+        if (!$user) {
+            $this->jsonResponse(['success' => false, 'error' => 'Not authenticated.'], 401);
+            return;
+        }
+
+        $this->db()->prepare(
+            'INSERT IGNORE INTO announcement_dismissals (announcement_id, user_id) VALUES (?, ?)'
+        )->execute([$id, $user['id']]);
+
+        $this->jsonResponse(['success' => true]);
+    }
+
     // ── System Settings Helpers ────────────────────────────────────
 
     /**
