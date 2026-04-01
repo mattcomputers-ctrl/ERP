@@ -32,9 +32,11 @@ try {
 }
 
 $container = [
-    'db'    => $pdo,
-    'audit' => new \App\Services\AuditService($pdo),
-    'email' => new \App\Services\EmailService($pdo, $_SESSION['user']['id'] ?? null),
+    'db'          => $pdo,
+    'audit'       => new \App\Services\AuditService($pdo),
+    'email'       => new \App\Services\EmailService($pdo, $_SESSION['user']['id'] ?? null),
+    'facility'    => new \App\Services\FacilityService($pdo),
+    'attachments' => new \App\Services\AttachmentService($pdo, __DIR__ . '/../storage/attachments'),
 ];
 
 \PrecisionInk\Controllers\BaseController::setContainer($container);
@@ -127,7 +129,20 @@ $router->mount('/qc', function () use ($router) {
 
 // ── Transfers ───────────────────────────────────────────────────────
 $router->mount('/transfers', function () use ($router) {
-    // TODO: inter-facility stock transfers
+    $c = 'PrecisionInk\\Controllers\\TransferController';
+    $router->get('/',               "{$c}@index");
+    $router->get('/create',         "{$c}@create");
+    $router->post('/create',        "{$c}@store");
+    $router->get('/search-items',   "{$c}@searchItems");
+    $router->get('/item-packs',     "{$c}@itemPackExtensions");
+    $router->get('/(\d+)',          "{$c}@view");
+    $router->get('/(\d+)/edit',     "{$c}@edit");
+    $router->post('/(\d+)/edit',    "{$c}@update");
+    $router->get('/(\d+)/ship',     "{$c}@shipForm");
+    $router->post('/(\d+)/ship',    "{$c}@ship");
+    $router->get('/(\d+)/receive',  "{$c}@receiveForm");
+    $router->post('/(\d+)/receive', "{$c}@receive");
+    $router->post('/(\d+)/cancel',  "{$c}@cancel");
 });
 
 // ── RMA ─────────────────────────────────────────────────────────────
@@ -296,6 +311,14 @@ $router->post('/print-queue/add', 'PrecisionInk\\Controllers\\SettingsController
 
 // ── Announcement Dismiss (outside /settings mount) ─────────────
 $router->post('/announcements/dismiss/(\d+)', 'PrecisionInk\\Controllers\\SettingsController@dismissAnnouncement');
+
+// ── Facility Switch ────────────────────────────────────────────
+$router->post('/facility/switch', 'PrecisionInk\\Controllers\\TransferController@switchFacility');
+
+// ── Attachments ────────────────────────────────────────────────
+$router->post('/attachments/upload', 'PrecisionInk\\Controllers\\AttachmentController@upload');
+$router->get('/attachments/download/(\d+)', 'PrecisionInk\\Controllers\\AttachmentController@download');
+$router->post('/attachments/delete/(\d+)', 'PrecisionInk\\Controllers\\AttachmentController@delete');
 
 // Dispatch
 $router->run();

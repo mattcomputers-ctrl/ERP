@@ -12,6 +12,35 @@
             <a href="/" class="app-logo">Precision Ink ERP</a>
         </div>
         <div class="header-right" style="display:flex; align-items:center; gap:16px;">
+            <?php
+            // Facility selector
+            $__facDb = \PrecisionInk\Controllers\BaseController::getSharedDb();
+            $__facSvc = $__facDb ? new \App\Services\FacilityService($__facDb) : null;
+            $__currentUser = $_SESSION['user'] ?? null;
+            if ($__facSvc && $__currentUser):
+                $__activeFacilityCount = $__facSvc->getActiveFacilityCount();
+                if ($__activeFacilityCount > 1):
+                    $__userFacilities = $__facSvc->getUserFacilities((int)$__currentUser['id']);
+                    $__activeFacility = $__facSvc->getActiveFacility((int)$__currentUser['id']);
+                    if (count($__userFacilities) > 1):
+            ?>
+            <form method="POST" action="/facility/switch" id="facility-form" style="margin:0;">
+                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
+                <select name="facility_id"
+                        onchange="document.getElementById('facility-form').submit()"
+                        style="padding:4px 8px; border-radius:4px; border:1px solid #555; background:#fff; font-size:13px;">
+                    <?php foreach ($__userFacilities as $__f): ?>
+                    <option value="<?= $__f['id'] ?>"
+                            <?= $__f['id'] == $__activeFacility['id'] ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($__f['name']) ?>
+                    </option>
+                    <?php endforeach; ?>
+                </select>
+            </form>
+            <?php elseif (count($__userFacilities) === 1): ?>
+            <span style="color:#fff; font-size:13px;"><?= htmlspecialchars($__activeFacility['name']) ?></span>
+            <?php endif; endif; endif; ?>
+
             <?php $pqCount = count($_SESSION['print_queue'] ?? []); ?>
             <a href="/settings/print-queue" class="print-queue-badge-link" style="color:#fff; text-decoration:none; font-size:13px; <?= $pqCount > 0 ? '' : 'display:none;' ?>">
                 &#128424; <span class="print-queue-badge"><?= $pqCount ?></span>

@@ -4,12 +4,16 @@ namespace PrecisionInk\Controllers;
 
 use App\Services\AuditService;
 use App\Services\EmailService;
+use App\Services\FacilityService;
+use App\Services\AttachmentService;
 
 abstract class BaseController
 {
     protected static ?\PDO $pdo = null;
     protected ?AuditService $auditService = null;
     protected ?EmailService $emailService = null;
+    protected ?FacilityService $facilityService = null;
+    protected ?AttachmentService $attachmentService = null;
 
     /** @var array Static service container, set once at bootstrap time. */
     private static array $container = [];
@@ -37,6 +41,12 @@ abstract class BaseController
         }
         if (isset(self::$container['email'])) {
             $this->emailService = self::$container['email'];
+        }
+        if (isset(self::$container['facility'])) {
+            $this->facilityService = self::$container['facility'];
+        }
+        if (isset(self::$container['attachments'])) {
+            $this->attachmentService = self::$container['attachments'];
         }
     }
 
@@ -296,5 +306,37 @@ abstract class BaseController
     {
         header("Location: {$url}");
         exit;
+    }
+
+    /**
+     * Generate the next document number for a given sequence key.
+     * Atomically increments the counter. Returns e.g. "TRF00001".
+     */
+    protected function generateDocumentNumber(string $sequenceKey): string
+    {
+        $this->db()->beginTransaction();
+        try {
+            $stmt = $this->db()->prepare(
+                'SELECT * FROM document_numbering_sequences WHERE sequence_key = ? FOR UPDATE'
+            );
+            $stmt->execute([$sequenceKey]);
+            $seq = $stmt->fetch();
+
+            if (!$seq) {
+                throw new \RuntimeException("Document numbering sequence not found: $sequenceKey");
+            }
+
+            $number = $seq['prefix'] . str_pad($seq['next_number'], 5, '0', STR_PAD_LEFT);
+
+            $this->db()->prepare(
+                'UPDATE document_numbering_sequences SET next_number = next_number + 1 WHERE id = ?'
+            )->execute([$seq['id']]);
+
+            $this->db()->commit();
+            return $number;
+        } catch (\Throwable $e) {
+            $this->db()->rollBack();
+            throw $e;
+        }
     }
 }
