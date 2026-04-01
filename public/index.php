@@ -55,7 +55,23 @@ $router->mount('/auth', function () use ($router) {
 
 // ── Items ───────────────────────────────────────────────────────────
 $router->mount('/items', function () use ($router) {
-    // TODO: CRUD for raw materials, finished goods, packaging
+    $router->get('/',                           'PrecisionInk\\Controllers\\ItemController@index');
+    $router->get('/create',                     'PrecisionInk\\Controllers\\ItemController@create');
+    $router->post('/create',                    'PrecisionInk\\Controllers\\ItemController@store');
+    $router->get('/search',                     'PrecisionInk\\Controllers\\ItemController@search');
+    $router->get('/customers-list',             'PrecisionInk\\Controllers\\ItemController@customersList');
+    $router->get('/(\d+)',                      'PrecisionInk\\Controllers\\ItemController@view');
+    $router->get('/(\d+)/edit',                 'PrecisionInk\\Controllers\\ItemController@editForm');
+    $router->post('/(\d+)/edit',                'PrecisionInk\\Controllers\\ItemController@update');
+    $router->post('/(\d+)/deactivate',          'PrecisionInk\\Controllers\\ItemController@deactivate');
+    $router->post('/(\d+)/clone',               'PrecisionInk\\Controllers\\ItemController@cloneItem');
+    $router->post('/(\d+)/packs',               'PrecisionInk\\Controllers\\ItemController@savePack');
+    $router->post('/(\d+)/packs/(\d+)/deactivate', 'PrecisionInk\\Controllers\\ItemController@deactivatePack');
+    $router->post('/(\d+)/aliases',             'PrecisionInk\\Controllers\\ItemController@saveAlias');
+    $router->post('/(\d+)/aliases/(\d+)/deactivate', 'PrecisionInk\\Controllers\\ItemController@deactivateAlias');
+    $router->post('/(\d+)/substitutions',       'PrecisionInk\\Controllers\\ItemController@saveSubstitution');
+    $router->post('/(\d+)/substitutions/(\d+)/deactivate', 'PrecisionInk\\Controllers\\ItemController@deactivateSubstitution');
+    $router->post('/(\d+)/location',            'PrecisionInk\\Controllers\\ItemController@saveLocation');
 });
 
 // ── Recipes ─────────────────────────────────────────────────────────
