@@ -46,6 +46,7 @@ $container = [
 $container['reservation'] = new \App\Services\ReservationService($pdo, $container['fifo']);
 $container['batch_cost'] = new \App\Services\BatchCostService($pdo, $container['fifo']);
 $container['pricing'] = new \App\Services\PricingService($pdo);
+$container['traceability'] = new \App\Services\LotTraceabilityService($pdo);
 
 \PrecisionInk\Controllers\BaseController::setContainer($container);
 
@@ -388,6 +389,19 @@ $router->mount('/consignment', function () use ($router) {
     $router->post('/(\d+)/close',                  "{$c}@close");
     $router->get('/(\d+)/statement',               "{$c}@statement");
     $router->post('/(\d+)/statement/email',        "{$c}@emailStatement");
+});
+
+// ── Traceability ────────────────────────────────────────────────────
+$router->mount('/traceability', function () use ($router) {
+    $c = 'PrecisionInk\\Controllers\\TraceabilityController';
+    $router->get('/',                  "{$c}@landing");
+    $router->get('/raw-material',      "{$c}@rawMaterial");
+    $router->post('/raw-material',     "{$c}@rawMaterial");
+    $router->get('/finished-good',     "{$c}@finishedGood");
+    $router->post('/finished-good',    "{$c}@finishedGood");
+    $router->get('/complaint',         "{$c}@complaint");
+    $router->post('/complaint',        "{$c}@complaint");
+    $router->get('/export',            "{$c}@export");
 });
 
 // ── CRM ─────────────────────────────────────────────────────────────
