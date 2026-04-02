@@ -182,11 +182,11 @@
         <div class="modal-box">
             <h3 style="margin:0 0 16px;">Clone Recipe Version</h3>
 
-            <!-- Option 1: Same item -->
-            <form method="POST" action="/items/<?= $item['id'] ?>/recipes/<?= $recipe['id'] ?>/clone" style="margin-bottom:16px;">
+            <!-- Option 1: Same item (GET — opens unsaved form) -->
+            <div style="margin-bottom:16px;">
                 <p style="font-size:14px; margin:0 0 8px;">Clone as new version on <strong><?= htmlspecialchars($item['item_code']) ?></strong></p>
-                <button type="submit" class="btn btn-primary">Clone to Same Item</button>
-            </form>
+                <a href="/items/<?= $item['id'] ?>/recipes/<?= $recipe['id'] ?>/clone" class="btn btn-primary">Clone to Same Item</a>
+            </div>
 
             <hr style="border:none; border-top:1px solid #e5e7eb; margin:16px 0;">
 

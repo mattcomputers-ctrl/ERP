@@ -130,7 +130,8 @@ $router->mount('/items', function () use ($router) {
     $router->post('/(\d+)/recipes/(\d+)/activate',          'PrecisionInk\\Controllers\\RecipeController@activate');
     $router->post('/(\d+)/recipes/(\d+)/deactivate',        'PrecisionInk\\Controllers\\RecipeController@deactivate');
     $router->post('/(\d+)/recipes/(\d+)/set-default',       'PrecisionInk\\Controllers\\RecipeController@setDefault');
-    $router->post('/(\d+)/recipes/(\d+)/clone',             'PrecisionInk\\Controllers\\RecipeController@cloneVersion');
+    $router->get('/(\d+)/recipes/(\d+)/clone',              'PrecisionInk\\Controllers\\RecipeController@cloneVersion');
+    $router->get('/(\d+)/recipe-versions',                   'PrecisionInk\\Controllers\\RecipeController@recipeVersionsJson');
 });
 
 // ── Suppliers ───────────────────────────────────────────────────────

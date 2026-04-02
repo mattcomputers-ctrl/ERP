@@ -110,15 +110,21 @@
     function loadRecipes(itemId) {
         var sel=document.getElementById('recipeSelect');
         sel.innerHTML='<option value="">Loading...</option>';
-        fetch('/items/'+itemId+'/recipes').then(function(r){return r.text();}).then(function(){
-            // Fetch recipe versions via a simple approach
-            fetch('/items/search?q=&limit=0').then(function(){
-                // Use a direct DB query endpoint - we'll populate from server side
-                // For now just clear and let user see available recipes
+        fetch('/items/'+itemId+'/recipe-versions')
+            .then(function(r){return r.json();})
+            .then(function(versions){
                 sel.innerHTML='<option value="">— Select recipe —</option>';
+                versions.forEach(function(v){
+                    var opt=document.createElement('option');
+                    opt.value=v.id;
+                    opt.textContent=v.version_name+' (v'+v.version_number+')' + (v.is_default?' *':'');
+                    if(v.is_default) opt.selected=true;
+                    sel.appendChild(opt);
+                });
+            })
+            .catch(function(){
+                sel.innerHTML='<option value="">— No recipes found —</option>';
             });
-        });
-        // Simpler: fetch recipe ingredients for preview
     }
     <?php endif;?>
     </script>

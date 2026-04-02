@@ -87,12 +87,14 @@ class RecipeController extends BaseController
             $countStmt->execute([(int)$itemId]);
             $isFirst = (int)$countStmt->fetchColumn() === 0;
 
+            $versionName = $this->generateVersionName((int)$itemId);
+
             $stmt = $this->db()->prepare("
                 INSERT INTO recipe_versions (item_id, version_number, version_name, yield_percentage, notes, is_default, created_by)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             ");
             $stmt->execute([
-                (int)$itemId, $nextVersion, $data['version_name'],
+                (int)$itemId, $nextVersion, $versionName,
                 $data['yield_percentage'], $data['notes'] ?: null,
                 $isFirst ? 1 : 0, $this->currentUserId(),
             ]);
@@ -314,6 +316,10 @@ class RecipeController extends BaseController
     /**
      * Clone a recipe version.
      */
+    /**
+     * Clone: opens create form pre-populated (does NOT auto-save).
+     * Changed from POST to GET — renders unsaved form.
+     */
     public function cloneVersion(string $itemId, string $versionId): void
     {
         if (!$this->checkPermission('items', 'create')) {
@@ -322,65 +328,26 @@ class RecipeController extends BaseController
             exit;
         }
 
+        $item = $this->getItemOrFail((int)$itemId);
         $recipe = $this->getVersionOrFail((int)$versionId, (int)$itemId);
         $steps = $this->getSteps((int)$versionId);
+        $uoms = $this->db()->query("SELECT id, abbreviation, name FROM uom WHERE active = 1 ORDER BY abbreviation")->fetchAll();
 
-        $targetItemId = (int)($_POST['target_item_id'] ?? $itemId);
-        if ($targetItemId !== (int)$itemId) {
-            $this->getItemOrFail($targetItemId);
-        }
+        // Pre-fill recipe data from clone source
+        $cloneData = [
+            'version_name' => '', // Will be auto-generated on save
+            'yield_percentage' => $recipe['yield_percentage'],
+            'notes' => $recipe['notes'],
+        ];
 
-        $this->db()->beginTransaction();
-        try {
-            $maxStmt = $this->db()->prepare("SELECT COALESCE(MAX(version_number), 0) FROM recipe_versions WHERE item_id = ?");
-            $maxStmt->execute([$targetItemId]);
-            $nextVersion = (int)$maxStmt->fetchColumn() + 1;
-
-            $isFirst = false;
-            if ($targetItemId !== (int)$itemId) {
-                $countStmt = $this->db()->prepare("SELECT COUNT(*) FROM recipe_versions WHERE item_id = ?");
-                $countStmt->execute([$targetItemId]);
-                $isFirst = (int)$countStmt->fetchColumn() === 0;
-            }
-
-            $stmt = $this->db()->prepare("
-                INSERT INTO recipe_versions (item_id, version_number, version_name, yield_percentage, notes, is_default, created_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([
-                $targetItemId, $nextVersion, 'Copy of ' . $recipe['version_name'],
-                $recipe['yield_percentage'], $recipe['notes'],
-                $isFirst ? 1 : 0, $this->currentUserId(),
-            ]);
-            $newVersionId = (int)$this->db()->lastInsertId();
-
-            // Copy steps
-            $stepInsert = $this->db()->prepare("
-                INSERT INTO recipe_steps (recipe_version_id, step_type, sequence, item_id, quantity, uom_id, instruction_text, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ");
-            foreach ($steps as $step) {
-                $stepInsert->execute([
-                    $newVersionId, $step['step_type'], $step['sequence'],
-                    $step['item_id'], $step['quantity'], $step['uom_id'],
-                    $step['instruction_text'], $step['notes'],
-                ]);
-            }
-
-            $this->db()->commit();
-
-            $this->auditCreate('recipe_versions', $newVersionId, [
-                'cloned_from' => (int)$versionId,
-                'item_id' => $targetItemId,
-                'version_number' => $nextVersion,
-            ]);
-            $this->toast('Recipe version cloned.', 'success');
-            $this->redirect("/items/{$targetItemId}/recipes/{$newVersionId}/edit");
-        } catch (\Throwable $e) {
-            $this->db()->rollBack();
-            $this->toast('Error cloning recipe: ' . $e->getMessage(), 'error');
-            $this->redirect("/items/{$itemId}/recipes/{$versionId}");
-        }
+        $this->renderView('recipes/edit', [
+            'mode' => 'create',
+            'item' => $item,
+            'recipe' => $cloneData,
+            'steps' => $steps,
+            'uoms' => $uoms,
+            'cloneNotice' => true,
+        ]);
     }
 
     /**
@@ -524,16 +491,41 @@ class RecipeController extends BaseController
         return $stmt->fetchAll();
     }
 
+    /**
+     * JSON API: return recipe versions for an item (for batch ticket dropdown).
+     */
+    public function recipeVersionsJson(string $itemId): void
+    {
+        $stmt = $this->db()->prepare("SELECT id, version_name, version_number, is_default, is_active FROM recipe_versions WHERE item_id = ? AND is_active = 1 ORDER BY version_number DESC");
+        $stmt->execute([(int)$itemId]);
+        $this->jsonResponse($stmt->fetchAll());
+    }
+
+    private function generateVersionName(int $itemId): string
+    {
+        $stmt = $this->db()->prepare('SELECT item_code FROM items WHERE id = ?');
+        $stmt->execute([$itemId]);
+        $itemCode = $stmt->fetchColumn() ?: 'ITEM';
+
+        $stmt = $this->db()->prepare('SELECT COUNT(*) FROM recipe_versions WHERE item_id = ?');
+        $stmt->execute([$itemId]);
+        $count = (int)$stmt->fetchColumn();
+
+        return $itemCode . '.' . str_pad($count + 1, 2, '0', STR_PAD_LEFT);
+    }
+
     private function extractRecipeData(): array
     {
         $steps = [];
         $rawSteps = $_POST['steps'] ?? [];
         foreach ($rawSteps as $s) {
             $type = $s['step_type'] ?? 'INGREDIENT';
+            $percentage = ($type === 'INGREDIENT' && ($s['percentage'] ?? '') !== '') ? (float)$s['percentage'] : null;
             $steps[] = [
                 'step_type' => $type,
                 'item_id' => ($type === 'INGREDIENT' && !empty($s['item_id'])) ? (int)$s['item_id'] : null,
-                'quantity' => ($type === 'INGREDIENT' && $s['quantity'] !== '') ? (float)$s['quantity'] : null,
+                'percentage' => $percentage,
+                'quantity' => $percentage, // quantity = percentage for backward compat
                 'uom_id' => ($type === 'INGREDIENT' && !empty($s['uom_id'])) ? (int)$s['uom_id'] : null,
                 'instruction_text' => ($type === 'INSTRUCTION') ? trim($s['instruction_text'] ?? '') : null,
                 'notes' => trim($s['notes'] ?? '') ?: null,
@@ -550,18 +542,23 @@ class RecipeController extends BaseController
     private function validateRecipe(array $data): array
     {
         $errors = [];
-        if (empty($data['version_name'])) $errors[] = 'Version name is required.';
         if ($data['yield_percentage'] <= 0 || $data['yield_percentage'] > 999) $errors[] = 'Yield percentage must be between 0 and 999.';
 
+        $totalPct = 0;
         foreach ($data['steps'] as $i => $step) {
             $n = $i + 1;
             if ($step['step_type'] === 'INGREDIENT') {
                 if (!$step['item_id']) $errors[] = "Step {$n}: Ingredient item is required.";
-                if (!$step['quantity'] || $step['quantity'] <= 0) $errors[] = "Step {$n}: Quantity must be greater than 0.";
-                if (!$step['uom_id']) $errors[] = "Step {$n}: UOM is required.";
+                if (!$step['percentage'] || $step['percentage'] <= 0) $errors[] = "Step {$n}: Percentage must be greater than 0.";
+                $totalPct += (float)($step['percentage'] ?? 0);
             } elseif ($step['step_type'] === 'INSTRUCTION') {
                 if (empty($step['instruction_text'])) $errors[] = "Step {$n}: Instruction text is required.";
             }
+        }
+
+        // Hard block if percentages don't sum to 100
+        if ($totalPct > 0 && abs($totalPct - 100) > 0.001) {
+            $errors[] = "Formula must equal exactly 100%. Current total: " . number_format($totalPct, 3) . "%";
         }
 
         return $errors;
@@ -570,14 +567,14 @@ class RecipeController extends BaseController
     private function saveSteps(int $versionId, array $steps): void
     {
         $stmt = $this->db()->prepare("
-            INSERT INTO recipe_steps (recipe_version_id, step_type, sequence, item_id, quantity, uom_id, instruction_text, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO recipe_steps (recipe_version_id, step_type, sequence, item_id, quantity, percentage, uom_id, instruction_text, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         foreach ($steps as $i => $step) {
             $sequence = ($i + 1) * 10;
             $stmt->execute([
                 $versionId, $step['step_type'], $sequence,
-                $step['item_id'], $step['quantity'], $step['uom_id'],
+                $step['item_id'], $step['quantity'], $step['percentage'] ?? null, $step['uom_id'],
                 $step['instruction_text'], $step['notes'],
             ]);
         }

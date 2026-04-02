@@ -61,16 +61,23 @@
             <a href="/items/<?= $item['id'] ?>/recipes" class="btn btn-secondary">&larr; Back to Recipes</a>
         </div>
 
+        <?php if (!empty($cloneNotice)): ?>
+        <div style="padding:10px 14px;background:#fef9c3;border:1px solid #fde68a;border-radius:6px;margin-bottom:12px;color:#854d0e;font-size:13px;">
+            You are creating a new recipe version based on a clone. This has not been saved yet.
+        </div>
+        <?php endif; ?>
+
         <form method="POST" action="<?= $mode === 'edit' ? "/items/{$item['id']}/recipes/{$recipe['id']}/edit" : "/items/{$item['id']}/recipes/create" ?>" id="recipeForm">
             <!-- Header fields -->
             <div class="form-section" style="margin-bottom:16px;">
                 <div style="display:grid; grid-template-columns:2fr 1fr; gap:12px;">
                     <div>
                         <label style="font-size:13px; font-weight:500; display:block; margin-bottom:4px;">
-                            Version Name <span style="color:red;">*</span>
+                            Version Name
                         </label>
-                        <input type="text" name="version_name" value="<?= htmlspecialchars($recipe['version_name'] ?? '') ?>"
-                               required class="form-input" style="width:100%;" placeholder="e.g. Standard Formula, Summer Blend">
+                        <div style="padding:8px 12px;background:#f3f4f6;border-radius:6px;font-size:14px;font-weight:500;color:#374151;">
+                            <?= $mode === 'edit' ? htmlspecialchars($recipe['version_name'] ?? '') : '<em style="color:#9ca3af;">Auto-generated on save (ItemCode.NN)</em>' ?>
+                        </div>
                     </div>
                     <div>
                         <label style="font-size:13px; font-weight:500; display:block; margin-bottom:4px;">
@@ -109,17 +116,15 @@
                                            autocomplete="off" style="width:100%; font-size:13px; padding:4px 8px;">
                                     <div class="item-suggestions"></div>
                                 </div>
-                                <div style="width:100px;">
-                                    <input type="number" step="0.0001" min="0" name="steps[<?= $idx ?>][quantity]"
-                                           value="<?= $step['quantity'] ?>" class="form-input step-qty"
-                                           placeholder="Qty" style="width:100%; font-size:13px; padding:4px 8px;">
+                                <div style="width:110px;">
+                                    <div style="display:flex;align-items:center;gap:2px;">
+                                        <input type="number" step="0.001" min="0" max="100" name="steps[<?= $idx ?>][percentage]"
+                                               value="<?= $step['percentage'] ?? $step['quantity'] ?? '' ?>" class="form-input step-qty"
+                                               placeholder="%" style="width:80px; font-size:13px; padding:4px 8px;">
+                                        <span style="font-size:12px;color:#6b7280;">%</span>
+                                    </div>
+                                    <input type="hidden" name="steps[<?= $idx ?>][uom_id]" value="<?= $step['uom_id'] ?? '' ?>">
                                 </div>
-                                <div style="width:100px;">
-                                    <select name="steps[<?= $idx ?>][uom_id]" class="form-input" style="width:100%; font-size:13px; padding:4px 8px;">
-                                        <?php foreach ($uoms as $u): ?>
-                                        <option value="<?= $u['id'] ?>" <?= ($step['uom_id'] ?? '') == $u['id'] ? 'selected' : '' ?>><?= htmlspecialchars($u['abbreviation']) ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
                                 </div>
                                 <span class="weight-pct" data-pct>—%</span>
                             </div>
@@ -195,13 +200,13 @@
                     '<input type="text" class="form-input step-item-search" placeholder="Search items..." autocomplete="off" style="width:100%; font-size:13px; padding:4px 8px;">' +
                     '<div class="item-suggestions"></div>' +
                 '</div>' +
-                '<div style="width:100px;">' +
-                    '<input type="number" step="0.0001" min="0" name="steps[' + stepIndex + '][quantity]" class="form-input step-qty" placeholder="Qty" style="width:100%; font-size:13px; padding:4px 8px;">' +
+                '<div style="width:110px;">' +
+                    '<div style="display:flex;align-items:center;gap:2px;">' +
+                    '<input type="number" step="0.001" min="0" max="100" name="steps[' + stepIndex + '][percentage]" class="form-input step-qty" placeholder="%" style="width:80px; font-size:13px; padding:4px 8px;">' +
+                    '<span style="font-size:12px;color:#6b7280;">%</span></div>' +
+                    '<input type="hidden" name="steps[' + stepIndex + '][uom_id]" value="">' +
                 '</div>' +
-                '<div style="width:100px;">' +
-                    '<select name="steps[' + stepIndex + '][uom_id]" class="form-input" style="width:100%; font-size:13px; padding:4px 8px;">' + uomOptions + '</select>' +
-                '</div>' +
-                '<span class="weight-pct" data-pct>—%</span>' +
+                '<span class="weight-pct" data-pct></span>' +
             '</div>' +
             '<div class="step-actions">' +
                 '<button type="button" class="btn btn-sm btn-secondary" onclick="moveStep(this, -1)" title="Move up">&uarr;</button>' +
@@ -278,37 +283,29 @@
     // ── Formula Calculation ───────────────────────────────────
 
     function updateFormulaSummary() {
-        var qtyInputs = document.querySelectorAll('.step-qty');
+        var pctInputs = document.querySelectorAll('.step-qty');
         var total = 0;
-        var pctSpans = document.querySelectorAll('[data-pct]');
 
-        qtyInputs.forEach(function(inp) {
+        pctInputs.forEach(function(inp) {
             total += parseFloat(inp.value) || 0;
         });
 
-        pctSpans.forEach(function(span) {
-            var row = span.closest('.step-row');
-            var qty = parseFloat(row.querySelector('.step-qty').value) || 0;
-            if (total > 0) {
-                span.textContent = (qty / total * 100).toFixed(2) + '%';
-            } else {
-                span.textContent = '—%';
-            }
-        });
-
         var summary = document.getElementById('formula-summary');
-        if (qtyInputs.length === 0) {
+        if (pctInputs.length === 0) {
             summary.style.display = 'none';
             return;
         }
         summary.style.display = 'block';
-        // The total of weight percentages always equals 100% when total > 0
-        if (total > 0) {
+        var isValid = Math.abs(total - 100) < 0.001;
+        if (isValid) {
             summary.className = 'formula-summary formula-ok';
-            summary.textContent = 'Formula total: 100.00% — ' + total.toFixed(4) + ' total quantity across ' + qtyInputs.length + ' ingredients';
+            summary.textContent = 'Formula total: ' + total.toFixed(3) + '% \u2713';
+        } else if (total > 0) {
+            summary.className = 'formula-summary formula-warn';
+            summary.textContent = 'Formula total: ' + total.toFixed(3) + '% — must equal 100%';
         } else {
             summary.className = 'formula-summary formula-warn';
-            summary.textContent = 'No ingredient quantities entered.';
+            summary.textContent = 'No ingredient percentages entered.';
         }
     }
 

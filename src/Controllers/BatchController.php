@@ -88,8 +88,10 @@ class BatchController extends BaseController
         $spec = $specStmt->fetch();
         if ($spec) $qcSpecId = (int)$spec['id'];
 
-        // Get recipe steps for scaling
+        // Get recipe steps — use percentage-based scaling
         $steps = $this->getRecipeIngredients($data['recipe_version_id']);
+        // If percentage column exists and is set, use it; otherwise fall back to old quantity scaling
+        $hasPercentage = !empty($steps) && isset($steps[0]['percentage']) && $steps[0]['percentage'] !== null;
         $totalRecipeQty = array_sum(array_column($steps, 'quantity'));
         $scaleFactor = $totalRecipeQty > 0 ? $data['target_quantity'] / $totalRecipeQty : 1;
 
@@ -115,7 +117,11 @@ class BatchController extends BaseController
             ");
             $reservationWarnings = [];
             foreach ($steps as $step) {
-                $theoreticalQty = round((float)$step['quantity'] * $scaleFactor, 4);
+                if ($hasPercentage && $step['percentage']) {
+                    $theoreticalQty = round(((float)$step['percentage'] / 100) * $data['target_quantity'], 4);
+                } else {
+                    $theoreticalQty = round((float)$step['quantity'] * $scaleFactor, 4);
+                }
                 $lineInsert->execute([$batchId, $step['item_id'], $step['uom_id'], $theoreticalQty, $step['sequence']]);
 
                 // Reserve inventory
@@ -960,7 +966,7 @@ class BatchController extends BaseController
     private function getRecipeIngredients(int $recipeVersionId): array
     {
         $stmt = $this->db()->prepare("
-            SELECT rs.item_id, rs.quantity, rs.uom_id, rs.sequence,
+            SELECT rs.item_id, rs.quantity, rs.percentage, rs.uom_id, rs.sequence,
                    i.item_code, i.description as item_description, u.abbreviation as uom_abbr
             FROM recipe_steps rs
             JOIN items i ON rs.item_id = i.id
