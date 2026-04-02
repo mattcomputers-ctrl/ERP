@@ -95,6 +95,7 @@
             <button class="tab-btn" onclick="switchTab('suppliers')">Suppliers</button>
             <button class="tab-btn" onclick="switchTab('custom-fields')">Custom Fields</button>
             <button class="tab-btn" onclick="switchTab('recipes')">Recipes</button>
+            <button class="tab-btn" onclick="switchTab('pricing')">Pricing</button>
             <button class="tab-btn" onclick="switchTab('qc-tests')">QC Tests</button>
         </div>
 
@@ -460,6 +461,80 @@
             <?php endif; ?>
         </div>
 
+        <!-- Pricing Tab -->
+        <div id="tab-pricing" class="tab-panel">
+            <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:16px;">
+                <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:12px 16px;min-width:200px;">
+                    <div style="font-size:12px;color:#166534;font-weight:600;">Replacement Cost</div>
+                    <?php if ($hasRecipe ?? false): ?>
+                        <div style="font-size:20px;font-weight:700;color:#15803d;">$<?= number_format($replacementCost ?? 0, 4) ?>/lb</div>
+                        <div style="font-size:11px;color:#6b7280;">Based on current supplier price list prices</div>
+                    <?php else: ?>
+                        <div style="color:#9ca3af;font-size:13px;">No default recipe</div>
+                    <?php endif; ?>
+                </div>
+                <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:12px 16px;min-width:200px;">
+                    <div style="font-size:12px;color:#1e40af;font-weight:600;">Inventory Cost</div>
+                    <?php if ($hasRecipe ?? false): ?>
+                        <div style="font-size:20px;font-weight:700;color:#1d4ed8;">$<?= number_format($inventoryCost ?? 0, 4) ?>/lb</div>
+                        <div style="font-size:11px;color:#6b7280;">Based on current average FIFO inventory cost</div>
+                    <?php else: ?>
+                        <div style="color:#9ca3af;font-size:13px;">No default recipe</div>
+                    <?php endif; ?>
+                </div>
+                <?php if (($item['sale_price'] ?? 0) > 0): ?>
+                <div style="background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:12px 16px;min-width:200px;">
+                    <div style="font-size:12px;color:#854d0e;font-weight:600;">Default Sale Price</div>
+                    <div style="font-size:20px;font-weight:700;color:#a16207;">$<?= number_format((float)$item['sale_price'], 4) ?>/lb</div>
+                    <div style="font-size:11px;color:#6b7280;">Fallback price from item record</div>
+                </div>
+                <?php endif; ?>
+            </div>
+
+            <h4 style="margin:0 0 8px;">Price Lists Containing This Item</h4>
+            <?php if (empty($itemPriceListInfo ?? [])): ?>
+                <p style="color:#9ca3af;">This item does not appear on any active price lists.</p>
+            <?php else: ?>
+            <table class="data-table" style="font-size:13px;">
+                <thead>
+                    <tr>
+                        <th>Price List</th>
+                        <th>Type</th>
+                        <th>Ext. Code</th>
+                        <th>Package</th>
+                        <th>25 lbs</th>
+                        <th>100 lbs</th>
+                        <th>500 lbs</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($itemPriceListInfo as $pli):
+                    // Calculate prices at different quantities
+                    $prices = [];
+                    foreach ([25, 100, 500] as $testQty) {
+                        $best = null;
+                        for ($bi = 1; $bi <= 5; $bi++) {
+                            if ($pli["break_qty_{$bi}"] === null) break;
+                            if ($testQty >= (float)$pli["break_qty_{$bi}"]) $best = (float)$pli["break_price_{$bi}"];
+                        }
+                        $prices[$testQty] = $best;
+                    }
+                ?>
+                <tr>
+                    <td><a href="/price-lists/<?= $pli['price_list_id'] ?>" style="color:#2563eb;text-decoration:none;"><?= htmlspecialchars($pli['list_name']) ?></a></td>
+                    <td><span class="badge <?= $pli['list_type']==='CUSTOMER'?'badge-info':'badge-warning' ?>"><?= $pli['list_type'] ?></span></td>
+                    <td><?= htmlspecialchars($pli['external_code'] ?? '') ?></td>
+                    <td><?= htmlspecialchars($pli['package_type_name'] ?? '—') ?></td>
+                    <?php foreach ([25, 100, 500] as $q): ?>
+                    <td style="text-align:right;"><?= $prices[$q] !== null ? '$'.number_format($prices[$q], 4) : '—' ?></td>
+                    <?php endforeach; ?>
+                </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+            <?php endif; ?>
+        </div>
+
         <!-- QC Tests Tab -->
         <div id="tab-qc-tests" class="tab-panel">
             <?php
@@ -639,7 +714,7 @@
             document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
             document.getElementById('tab-' + hash).classList.add('active');
             var btns = document.querySelectorAll('.tab-btn');
-            var tabNames = ['details','packs','aliases','substitutions','locations','suppliers','custom-fields','recipes','qc-tests'];
+            var tabNames = ['details','packs','aliases','substitutions','locations','suppliers','custom-fields','recipes','pricing','qc-tests'];
             var idx = tabNames.indexOf(hash);
             if (idx >= 0 && btns[idx]) btns[idx].classList.add('active');
         }

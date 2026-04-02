@@ -363,15 +363,27 @@ class QuoteController extends BaseController
 
         if (!$itemId) { $this->jsonResponse(['unit_price' => 0, 'moq' => null]); return; }
 
-        $stmt = $this->db()->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'pricing_service_enabled'");
-        // Use PricingService from container
-        $pricingDb = $this->db();
-        $pricing = new \App\Services\PricingService($pricingDb);
+        $pricing = new \App\Services\PricingService($this->db());
 
-        $price = $pricing->resolvePrice($itemId, $customerId ?: null, $qty);
-        $moq = $customerId ? $pricing->checkMOQ($itemId, $customerId, $qty) : null;
+        if ($customerId) {
+            $result = $pricing->resolveCustomerPrice($itemId, $customerId, $qty);
+            $moq = $pricing->checkMOQ($itemId, $customerId, $qty);
+        } else {
+            $legacyPrice = $pricing->resolvePrice($itemId, null, $qty);
+            $result = ['price' => $legacyPrice, 'source' => 'manual', 'list_name' => null,
+                        'package_type' => null, 'qty_per_package' => null, 'external_code' => null];
+            $moq = null;
+        }
 
-        $this->jsonResponse(['unit_price' => $price, 'moq' => $moq]);
+        $this->jsonResponse([
+            'unit_price' => $result['price'],
+            'source' => $result['source'],
+            'list_name' => $result['list_name'],
+            'package_type' => $result['package_type'],
+            'qty_per_package' => $result['qty_per_package'],
+            'external_code' => $result['external_code'],
+            'moq' => $moq,
+        ]);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────

@@ -471,7 +471,57 @@
 
         <!-- ═══ Pricing Tab ═══ -->
         <div id="tab-pricing" class="tab-panel">
-            <!-- Customer Price Overrides -->
+            <!-- Assigned Price Lists -->
+            <h3 style="font-size:14px; margin:0 0 8px;">Assigned Price Lists</h3>
+            <form method="POST" action="/customers/<?= $customer['id'] ?>/price-lists" class="inline-form" style="margin-bottom:8px;">
+                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
+                <div class="fg">
+                    <label>Price List</label>
+                    <select name="price_list_id" class="form-input" style="width:250px;" required>
+                        <option value="">— Select —</option>
+                        <?php foreach ($availablePriceLists ?? [] as $apl): ?>
+                        <option value="<?= $apl['id'] ?>"><?= htmlspecialchars($apl['name']) ?> (priority <?= (int)$apl['default_priority'] ?>)</option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="fg"><label>Priority Override</label><input type="number" name="priority_override" placeholder="Default" class="form-input" style="width:80px;"></div>
+                <button type="submit" class="btn btn-primary btn-sm">Assign</button>
+            </form>
+            <table class="data-table" style="margin-bottom:24px;">
+                <thead><tr><th>Price List</th><th>Priority</th><th>Effective</th><th>Expires</th><th>Active</th><th>Actions</th></tr></thead>
+                <tbody>
+                <?php if (empty($priceListAssignments ?? [])): ?>
+                    <tr><td colspan="6" class="empty-state">No price lists assigned.</td></tr>
+                <?php else: foreach ($priceListAssignments as $pla): ?>
+                <tr class="<?= !$pla['active'] ? 'inactive-row' : '' ?>">
+                    <td><a href="/price-lists/<?= $pla['price_list_id'] ?>" style="color:#2563eb;text-decoration:none;font-weight:500;"><?= htmlspecialchars($pla['list_name']) ?></a></td>
+                    <td>
+                        <?php $effP = $pla['priority_override'] ?? $pla['default_priority']; ?>
+                        <?= (int)$effP ?>
+                        <?php if ($pla['priority_override'] !== null): ?><small style="color:#6b7280;">(override)</small><?php endif; ?>
+                    </td>
+                    <td><?= date('M j, Y', strtotime($pla['effective_date'])) ?></td>
+                    <td><?= $pla['expiration_date'] ? date('M j, Y', strtotime($pla['expiration_date'])) : '—' ?></td>
+                    <td><span class="badge <?= $pla['active']?'badge-active':'badge-inactive' ?>"><?= $pla['active']?'Active':'Inactive' ?></span></td>
+                    <td class="actions-cell">
+                        <?php if ($pla['active']): ?>
+                        <form method="POST" action="/customers/<?= $customer['id'] ?>/price-lists/<?= $pla['id'] ?>" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
+                            <input type="number" name="priority_override" value="<?= $pla['priority_override'] ?? '' ?>" placeholder="Default" style="width:60px;padding:2px 4px;font-size:12px;border:1px solid #d1d5db;border-radius:3px;">
+                            <button type="submit" class="btn btn-sm btn-secondary">Update</button>
+                        </form>
+                        <form method="POST" action="/customers/<?= $customer['id'] ?>/price-lists/<?= $pla['id'] ?>/remove" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
+                            <button type="submit" class="btn btn-sm btn-warning" onclick="return confirm('Remove this price list?')">Remove</button>
+                        </form>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php endforeach; endif; ?>
+                </tbody>
+            </table>
+
+            <!-- Customer Price Overrides (legacy) -->
             <h3 style="font-size:14px; margin:0 0 8px;">Price Overrides</h3>
             <form method="POST" action="/customers/<?= $customer['id'] ?>/prices" class="inline-form" id="priceForm">
                 <input type="hidden" name="price_id" id="priceId" value="">

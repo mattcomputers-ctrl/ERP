@@ -119,11 +119,6 @@
                                class="form-input" style="width:100%;">
                     </div>
                     <div>
-                        <label style="font-size:13px; font-weight:500; display:block; margin-bottom:4px;">Sale Price</label>
-                        <input type="number" step="0.0001" name="sale_price" value="<?= htmlspecialchars($item['sale_price'] ?? '0') ?>"
-                               class="form-input" style="width:100%;">
-                    </div>
-                    <div>
                         <label style="font-size:13px; font-weight:500; display:block; margin-bottom:4px;">Reorder Min</label>
                         <input type="number" step="0.0001" name="reorder_min" value="<?= htmlspecialchars($item['reorder_min'] ?? '') ?>"
                                class="form-input" style="width:100%;">

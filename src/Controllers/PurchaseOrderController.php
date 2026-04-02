@@ -366,14 +366,18 @@ class PurchaseOrderController extends BaseController
         $supplierId = (int)($_GET['supplier_id'] ?? 0);
         if (!$itemId || !$supplierId) { $this->jsonResponse(['unit_cost' => null]); return; }
 
-        $stmt = $this->db()->prepare("
-            SELECT approved_unit_cost FROM approved_vendor_list
-            WHERE item_id = ? AND supplier_id = ? AND active = 1
-            ORDER BY is_preferred DESC LIMIT 1
-        ");
-        $stmt->execute([$itemId, $supplierId]);
-        $cost = $stmt->fetchColumn();
-        $this->jsonResponse(['unit_cost' => $cost !== false ? (float)$cost : null]);
+        $pricing = new \App\Services\PricingService($this->db());
+        $qty = (float)($_GET['qty'] ?? 1);
+        $result = $pricing->resolveSupplierPrice($itemId, $supplierId, $qty);
+
+        $this->jsonResponse([
+            'unit_cost' => $result['price'] > 0 ? $result['price'] : null,
+            'source' => $result['source'],
+            'list_name' => $result['list_name'],
+            'external_code' => $result['external_code'],
+            'package_type' => $result['package_type'],
+            'qty_per_package' => $result['qty_per_package'],
+        ]);
     }
 
     // ── Send ────────────────────────────────────────────────────────

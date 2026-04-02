@@ -268,6 +268,22 @@ class ItemController extends BaseController
         $itemQcTests = $itemQcStmt->fetchAll();
         $assignedTestIds = array_column($itemQcTests, 'qc_test_definition_id');
 
+        // Pricing data
+        $pricingSvc = new \App\Services\PricingService($this->db());
+        $itemPriceListInfo = $pricingSvc->getItemPriceListInfo((int)$id);
+
+        // Check if item has a default recipe for cost calculations
+        $hasRecipe = false;
+        $replacementCost = 0;
+        $inventoryCost = 0;
+        $recipeCheck = $this->db()->prepare("SELECT COUNT(*) FROM recipe_versions WHERE item_id = ? AND is_default = 1 AND is_active = 1");
+        $recipeCheck->execute([(int)$id]);
+        if ((int)$recipeCheck->fetchColumn() > 0) {
+            $hasRecipe = true;
+            $replacementCost = $pricingSvc->calculateReplacementCost((int)$id);
+            $inventoryCost = $pricingSvc->calculateInventoryCost((int)$id);
+        }
+
         $this->renderView('items/view', [
             'item' => $item,
             'packExtensions' => $packExtensions,
@@ -283,6 +299,10 @@ class ItemController extends BaseController
             'itemQcTests' => $itemQcTests,
             'assignedTestIds' => $assignedTestIds,
             'record' => $item,
+            'itemPriceListInfo' => $itemPriceListInfo,
+            'hasRecipe' => $hasRecipe,
+            'replacementCost' => $replacementCost,
+            'inventoryCost' => $inventoryCost,
         ]);
     }
 

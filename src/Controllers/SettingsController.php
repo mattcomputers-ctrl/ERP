@@ -218,6 +218,9 @@ class SettingsController extends BaseController
     public function industrySegments(): void { $this->showDropdownList('industry_segments', 'Industry Segments'); }
     public function saveIndustrySegments(): void { $this->saveDropdownItem('industry_segments', '/settings/industry-segments'); }
 
+    public function packageTypes(): void { $this->showDropdownList('package_types', 'Package Types'); }
+    public function savePackageTypes(): void { $this->saveDropdownItem('package_types', '/settings/package-types-list'); }
+
     // ── Dropdown List Helpers ──────────────────────────────────────
 
     /**
@@ -277,6 +280,7 @@ class SettingsController extends BaseController
             'landed_cost_types'  => 'landed-cost-types',
             'reason_codes'       => 'reason-codes',
             'industry_segments'  => 'industry-segments',
+            'package_types'      => 'package-types-list',
             default              => $table,
         };
     }

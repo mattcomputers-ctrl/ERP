@@ -150,12 +150,34 @@ class CustomerController extends BaseController
         $users = $this->db()->query("SELECT id, full_name FROM users WHERE active = 1 ORDER BY full_name")->fetchAll();
         $segments = $this->db()->query("SELECT id, name FROM industry_segments WHERE active = 1 ORDER BY name")->fetchAll();
 
+        // Price list assignments
+        $plAssignStmt = $this->db()->prepare("
+            SELECT cpla.*, pl.name as list_name, pl.list_type, pl.default_priority, pl.effective_date, pl.expiration_date, pl.active as list_active
+            FROM customer_price_list_assignments cpla
+            JOIN price_lists pl ON cpla.price_list_id = pl.id
+            WHERE cpla.customer_id = ?
+            ORDER BY cpla.active DESC, COALESCE(cpla.priority_override, pl.default_priority) ASC
+        ");
+        $plAssignStmt->execute([(int)$id]);
+        $priceListAssignments = $plAssignStmt->fetchAll();
+
+        $availablePriceLists = $this->db()->prepare("
+            SELECT pl.id, pl.name, pl.default_priority
+            FROM price_lists pl
+            WHERE pl.active = 1 AND pl.list_type = 'CUSTOMER'
+              AND pl.id NOT IN (SELECT price_list_id FROM customer_price_list_assignments WHERE customer_id = ? AND active = 1)
+            ORDER BY pl.name
+        ");
+        $availablePriceLists->execute([(int)$id]);
+        $availablePriceLists = $availablePriceLists->fetchAll();
+
         $this->renderView('customers/view', [
             'customer' => $customer, 'credit' => $credit, 'contacts' => $contacts,
             'shipTos' => $shipTos, 'crmProfile' => $crmProfile, 'activities' => $activities,
             'tasks' => $tasks, 'prices' => $prices, 'moqs' => $moqs,
             'recentSOs' => $recentSOs, 'recentInvoices' => $recentInvoices,
             'users' => $users, 'segments' => $segments, 'record' => $customer,
+            'priceListAssignments' => $priceListAssignments, 'availablePriceLists' => $availablePriceLists,
         ]);
     }
 
@@ -560,6 +582,44 @@ class CustomerController extends BaseController
         $this->db()->prepare("UPDATE customer_moq SET active=0 WHERE id=? AND customer_id=?")->execute([(int)$moqId, (int)$id]);
         $this->auditLog('UPDATE', 'customer_moq', (int)$moqId, ['active'=>1], ['active'=>0]);
         $this->toast('MOQ deactivated.', 'success');
+        $this->redirect("/customers/{$id}#pricing");
+    }
+
+    // ── Price List Assignments ──────────────────────────────────────
+
+    public function assignPriceList(string $id): void
+    {
+        if (!$this->checkPermission('customers', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+        $listId = (int)($_POST['price_list_id'] ?? 0);
+        $priority = ($_POST['priority_override'] ?? '') !== '' ? (int)$_POST['priority_override'] : null;
+        if (!$listId) { $this->toast('Price list is required.', 'error'); $this->redirect("/customers/{$id}#pricing"); return; }
+
+        $this->db()->prepare("
+            INSERT INTO customer_price_list_assignments (customer_id, price_list_id, priority_override, active)
+            VALUES (?, ?, ?, 1)
+            ON DUPLICATE KEY UPDATE priority_override = VALUES(priority_override), active = 1, updated_at = NOW()
+        ")->execute([(int)$id, $listId, $priority]);
+
+        $this->toast('Price list assigned.', 'success');
+        $this->redirect("/customers/{$id}#pricing");
+    }
+
+    public function updatePriceListAssignment(string $id, string $assignmentId): void
+    {
+        if (!$this->checkPermission('customers', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+        $priority = ($_POST['priority_override'] ?? '') !== '' ? (int)$_POST['priority_override'] : null;
+        $this->db()->prepare("UPDATE customer_price_list_assignments SET priority_override = ?, updated_at = NOW() WHERE id = ? AND customer_id = ?")
+            ->execute([$priority, (int)$assignmentId, (int)$id]);
+        $this->toast('Priority updated.', 'success');
+        $this->redirect("/customers/{$id}#pricing");
+    }
+
+    public function removePriceListAssignment(string $id, string $assignmentId): void
+    {
+        if (!$this->checkPermission('customers', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+        $this->db()->prepare("UPDATE customer_price_list_assignments SET active = 0, updated_at = NOW() WHERE id = ? AND customer_id = ?")
+            ->execute([(int)$assignmentId, (int)$id]);
+        $this->toast('Price list removed.', 'success');
         $this->redirect("/customers/{$id}#pricing");
     }
 

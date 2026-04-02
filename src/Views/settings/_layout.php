@@ -74,6 +74,7 @@
                 <a href="/settings/landed-cost-types" class="nav-link <?= ($section ?? '') === 'landed-cost-types' ? 'active' : '' ?>">Landed Cost Types</a>
                 <a href="/settings/reason-codes" class="nav-link <?= ($section ?? '') === 'reason-codes' ? 'active' : '' ?>">Reason Codes</a>
                 <a href="/settings/industry-segments" class="nav-link <?= ($section ?? '') === 'industry-segments' ? 'active' : '' ?>">Industry Segments</a>
+                <a href="/settings/package-types-list" class="nav-link <?= ($section ?? '') === 'package-types-list' ? 'active' : '' ?>">Package Types</a>
             </div>
 
             <div class="nav-group">

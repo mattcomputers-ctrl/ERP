@@ -152,6 +152,9 @@ $router->mount('/suppliers', function () use ($router) {
     $router->post('/(\d+)/contacts/(\d+)/deactivate', 'PrecisionInk\\Controllers\\SupplierController@deactivateContact');
     $router->post('/(\d+)/avl',                    'PrecisionInk\\Controllers\\SupplierController@saveAvl');
     $router->post('/(\d+)/avl/(\d+)/deactivate',   'PrecisionInk\\Controllers\\SupplierController@deactivateAvl');
+    $router->post('/(\d+)/price-lists',             'PrecisionInk\\Controllers\\SupplierController@assignPriceList');
+    $router->post('/(\d+)/price-lists/(\d+)',       'PrecisionInk\\Controllers\\SupplierController@updatePriceListAssignment');
+    $router->post('/(\d+)/price-lists/(\d+)/remove', 'PrecisionInk\\Controllers\\SupplierController@removePriceListAssignment');
 });
 
 // ── Customers ───────────────────────────────────────────────────────
@@ -180,6 +183,9 @@ $router->mount('/customers', function () use ($router) {
     $router->post('/(\d+)/prices/(\d+)/deactivate',    'PrecisionInk\\Controllers\\CustomerController@deactivatePrice');
     $router->post('/(\d+)/moq',                        'PrecisionInk\\Controllers\\CustomerController@saveMoq');
     $router->post('/(\d+)/moq/(\d+)/deactivate',       'PrecisionInk\\Controllers\\CustomerController@deactivateMoq');
+    $router->post('/(\d+)/price-lists',                 'PrecisionInk\\Controllers\\CustomerController@assignPriceList');
+    $router->post('/(\d+)/price-lists/(\d+)',           'PrecisionInk\\Controllers\\CustomerController@updatePriceListAssignment');
+    $router->post('/(\d+)/price-lists/(\d+)/remove',    'PrecisionInk\\Controllers\\CustomerController@removePriceListAssignment');
 });
 
 // ── Inventory ───────────────────────────────────────────────────────
@@ -239,6 +245,21 @@ $router->mount('/purchase-orders', function () use ($router) {
     $router->get('/(\d+)/landed-costs',                "{$c}@landedCostsForm");
     $router->post('/(\d+)/landed-costs',               "{$c}@addLandedCost");
     $router->post('/(\d+)/landed-costs/(\d+)/post',    "{$c}@postLandedCost");
+});
+
+// ── Price Lists ────────────────────────────────────────────────────
+$router->mount('/price-lists', function () use ($router) {
+    $c = 'PrecisionInk\\Controllers\\PriceListController';
+    $router->get('/',                          "{$c}@index");
+    $router->get('/create',                    "{$c}@createForm");
+    $router->post('/create',                   "{$c}@store");
+    $router->get('/(\d+)',                     "{$c}@view");
+    $router->get('/(\d+)/edit',                "{$c}@editForm");
+    $router->post('/(\d+)/edit',               "{$c}@update");
+    $router->post('/(\d+)/lines',              "{$c}@addLine");
+    $router->post('/(\d+)/lines/(\d+)',        "{$c}@updateLine");
+    $router->post('/(\d+)/lines/(\d+)/deactivate', "{$c}@deactivateLine");
+    $router->post('/(\d+)/clone',              "{$c}@cloneList");
 });
 
 // ── Sales Orders ────────────────────────────────────────────────────
@@ -579,6 +600,8 @@ $router->mount('/settings', function () use ($router) {
 
     $router->get('/industry-segments',   "{$c}@industrySegments");
     $router->post('/industry-segments',  "{$c}@saveIndustrySegments");
+    $router->get('/package-types-list',  "{$c}@packageTypes");
+    $router->post('/package-types-list', "{$c}@savePackageTypes");
 
     // Facilities
     $router->get('/facilities',          "{$c}@facilities");

@@ -183,6 +183,27 @@ class SupplierController extends BaseController
         $scarStmt->execute([(int)$id]);
         $scars = $scarStmt->fetchAll();
 
+        // Price list assignments
+        $plAssignStmt = $this->db()->prepare("
+            SELECT spla.*, pl.name as list_name, pl.list_type, pl.default_priority, pl.effective_date, pl.expiration_date, pl.active as list_active
+            FROM supplier_price_list_assignments spla
+            JOIN price_lists pl ON spla.price_list_id = pl.id
+            WHERE spla.supplier_id = ?
+            ORDER BY spla.active DESC, COALESCE(spla.priority_override, pl.default_priority) ASC
+        ");
+        $plAssignStmt->execute([(int)$id]);
+        $priceListAssignments = $plAssignStmt->fetchAll();
+
+        $availablePriceLists = $this->db()->prepare("
+            SELECT pl.id, pl.name, pl.default_priority
+            FROM price_lists pl
+            WHERE pl.active = 1 AND pl.list_type = 'SUPPLIER'
+              AND pl.id NOT IN (SELECT price_list_id FROM supplier_price_list_assignments WHERE supplier_id = ? AND active = 1)
+            ORDER BY pl.name
+        ");
+        $availablePriceLists->execute([(int)$id]);
+        $availablePriceLists = $availablePriceLists->fetchAll();
+
         $this->renderView('suppliers/view', [
             'supplier' => $supplier,
             'contacts' => $contacts,
@@ -191,6 +212,7 @@ class SupplierController extends BaseController
             'recentPOs' => $recentPOs,
             'scars' => $scars,
             'record' => $supplier,
+            'priceListAssignments' => $priceListAssignments, 'availablePriceLists' => $availablePriceLists,
         ]);
     }
 
@@ -440,6 +462,44 @@ class SupplierController extends BaseController
         $this->auditLog('UPDATE', 'approved_vendor_list', (int)$avlId, ['active' => 1], ['active' => 0]);
         $this->toast('AVL entry removed.', 'success');
         $this->redirect("/suppliers/{$id}#avl");
+    }
+
+    // ── Price List Assignments ──────────────────────────────────────
+
+    public function assignPriceList(string $id): void
+    {
+        if (!$this->checkPermission('suppliers', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+        $listId = (int)($_POST['price_list_id'] ?? 0);
+        $priority = ($_POST['priority_override'] ?? '') !== '' ? (int)$_POST['priority_override'] : null;
+        if (!$listId) { $this->toast('Price list is required.', 'error'); $this->redirect("/suppliers/{$id}#pricing"); return; }
+
+        $this->db()->prepare("
+            INSERT INTO supplier_price_list_assignments (supplier_id, price_list_id, priority_override, active)
+            VALUES (?, ?, ?, 1)
+            ON DUPLICATE KEY UPDATE priority_override = VALUES(priority_override), active = 1, updated_at = NOW()
+        ")->execute([(int)$id, $listId, $priority]);
+
+        $this->toast('Price list assigned.', 'success');
+        $this->redirect("/suppliers/{$id}#pricing");
+    }
+
+    public function updatePriceListAssignment(string $id, string $assignmentId): void
+    {
+        if (!$this->checkPermission('suppliers', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+        $priority = ($_POST['priority_override'] ?? '') !== '' ? (int)$_POST['priority_override'] : null;
+        $this->db()->prepare("UPDATE supplier_price_list_assignments SET priority_override = ?, updated_at = NOW() WHERE id = ? AND supplier_id = ?")
+            ->execute([$priority, (int)$assignmentId, (int)$id]);
+        $this->toast('Priority updated.', 'success');
+        $this->redirect("/suppliers/{$id}#pricing");
+    }
+
+    public function removePriceListAssignment(string $id, string $assignmentId): void
+    {
+        if (!$this->checkPermission('suppliers', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+        $this->db()->prepare("UPDATE supplier_price_list_assignments SET active = 0, updated_at = NOW() WHERE id = ? AND supplier_id = ?")
+            ->execute([(int)$assignmentId, (int)$id]);
+        $this->toast('Price list removed.', 'success');
+        $this->redirect("/suppliers/{$id}#pricing");
     }
 
     // ── Helpers ─────────────────────────────────────────────────────
