@@ -298,12 +298,26 @@ $router->mount('/consignment', function () use ($router) {
 
 // ── CRM ─────────────────────────────────────────────────────────────
 $router->mount('/crm', function () use ($router) {
-    // TODO: contacts, activities, follow-ups
+    $c = 'PrecisionInk\\Controllers\\CrmController';
+    $router->get('/',                    "{$c}@landing");
+    $router->get('/dashboard',           "{$c}@dashboard");
+    $router->get('/tasks',               "{$c}@taskList");
+    $router->get('/tasks/(\d+)/complete',  "{$c}@completeTask");
+    $router->post('/tasks/(\d+)/complete', "{$c}@completeTask");
+    $router->post('/tasks/(\d+)/cancel',   "{$c}@cancelTask");
+    $router->post('/tasks/bulk',         "{$c}@bulkTasks");
+    $router->post('/tasks/create',       "{$c}@taskCreate");
+    $router->post('/activity/create',    "{$c}@activityCreate");
 });
 
 // ── Reports ─────────────────────────────────────────────────────────
 $router->mount('/reports', function () use ($router) {
-    // TODO: dashboards, exports, scheduled reports
+    $c = 'PrecisionInk\\Controllers\\ReportController';
+    $router->get('/crm/rep-activity',        "{$c}@crmRepActivity");
+    $router->get('/crm/contact-frequency',   "{$c}@crmContactFrequency");
+    $router->get('/crm/tasks',               "{$c}@crmTaskReport");
+    $router->get('/crm/rep-customers',       "{$c}@crmRepCustomers");
+    $router->get('/crm/next-contact',        "{$c}@crmNextContact");
 });
 
 // ── API ─────────────────────────────────────────────────────────────
