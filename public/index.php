@@ -57,7 +57,11 @@ $router = new \Bramus\Router\Router();
 
 // ── Dashboard ──────────────────────────────────────────────────────
 $router->get('/', 'PrecisionInk\\Controllers\\DashboardController@index');
+$router->get('/dashboard', 'PrecisionInk\\Controllers\\DashboardController@index');
 $router->get('/search', 'PrecisionInk\\Controllers\\DashboardController@globalSearch');
+$router->post('/dashboard/layout', 'PrecisionInk\\Controllers\\DashboardController@saveLayout');
+$router->post('/dashboard/reset', 'PrecisionInk\\Controllers\\DashboardController@resetLayout');
+$router->post('/profile/set-theme', 'PrecisionInk\\Controllers\\DashboardController@setTheme');
 
 // ── Auth ────────────────────────────────────────────────────────────
 $router->get('/auth/login', 'PrecisionInk\\Controllers\\AuthController@loginForm');
