@@ -1593,7 +1593,7 @@ class SettingsController extends BaseController
 
     // ── Audit Log ─────────────────────────────────────────────────
 
-    public function auditLog(): void
+    public function auditLogView(): void
     {
         $this->requireAdmin();
 

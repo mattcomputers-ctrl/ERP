@@ -607,7 +607,7 @@ $router->mount('/settings', function () use ($router) {
     $router->get('/notification-log',              "{$c}@notificationLog");
 
     // Audit Log
-    $router->get('/audit-log',                     "{$c}@auditLog");
+    $router->get('/audit-log',                     "{$c}@auditLogView");
     $router->get('/audit-log/export',              "{$c}@auditLogExport");
 
     // Email Log
