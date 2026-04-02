@@ -195,9 +195,27 @@
             <?php endif; ?>
         </div>
 
-        <!-- Landed Costs Tab (stub for Pass 3) -->
+        <!-- Landed Costs Tab -->
         <div id="tab-landed" class="tab-panel">
-            <p style="color:#9ca3af; padding:16px;">Built in Pass 3.</p>
+            <?php if (empty($landedCosts)): ?>
+                <p style="color:#9ca3af; padding:16px 0;">No landed costs recorded.</p>
+            <?php else: ?>
+                <table class="data-table" style="margin-bottom:12px;">
+                    <thead><tr><th>Cost Type</th><th>Receipt</th><th style="text-align:right;">Amount</th><th>Method</th><th>Status</th></tr></thead>
+                    <tbody>
+                        <?php foreach ($landedCosts as $lc): ?>
+                        <tr>
+                            <td><?= htmlspecialchars($lc['cost_type']) ?></td>
+                            <td><?= htmlspecialchars($lc['supplier_invoice_number']) ?></td>
+                            <td style="text-align:right;">$<?= number_format((float)$lc['amount'], 2) ?></td>
+                            <td><span class="badge badge-inactive"><?= $lc['allocation_method'] ?></span></td>
+                            <td><span class="badge <?= $lc['posted'] ? 'badge-active' : 'badge-warning' ?>"><?= $lc['posted'] ? 'POSTED' : 'PENDING' ?></span></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+            <a href="/purchase-orders/<?= $po['id'] ?>/landed-costs" class="btn btn-secondary">Manage Landed Costs</a>
         </div>
 
         <!-- Revision History Tab -->

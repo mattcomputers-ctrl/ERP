@@ -189,6 +189,9 @@ $router->mount('/purchase-orders', function () use ($router) {
     $router->get('/(\d+)/receive',                     "{$c}@receiveForm");
     $router->post('/(\d+)/receive',                    "{$c}@receive");
     $router->post('/(\d+)/cancel-line/(\d+)',          "{$c}@cancelLine");
+    $router->get('/(\d+)/landed-costs',                "{$c}@landedCostsForm");
+    $router->post('/(\d+)/landed-costs',               "{$c}@addLandedCost");
+    $router->post('/(\d+)/landed-costs/(\d+)/post',    "{$c}@postLandedCost");
 });
 
 // ── Sales Orders ────────────────────────────────────────────────────

@@ -630,6 +630,212 @@ class PurchaseOrderController extends BaseController
         }
     }
 
+    // ── Landed Costs ────────────────────────────────────────────────
+
+    public function landedCostsForm(string $id): void
+    {
+        if (!$this->checkPermission('purchase_orders', 'view')) { http_response_code(403); echo 'Access Denied'; exit; }
+
+        $po = $this->getOrFail((int)$id);
+
+        // All receipts with their lines
+        $receipts = $this->db()->prepare("
+            SELECT pr.id, pr.receipt_date, pr.supplier_invoice_number
+            FROM po_receipts pr WHERE pr.po_id = ? ORDER BY pr.receipt_date
+        ");
+        $receipts->execute([(int)$id]);
+        $receipts = $receipts->fetchAll();
+
+        $receiptLines = [];
+        foreach ($receipts as $r) {
+            $rlStmt = $this->db()->prepare("
+                SELECT prl.id, prl.received_quantity, prl.unit_cost, prl.receipt_id,
+                       i.item_code, i.description as item_description,
+                       pol.ordered_quantity,
+                       (SELECT GROUP_CONCAT(fifo_lot_id) FROM po_receipt_lots WHERE receipt_line_id = prl.id) as fifo_lot_ids
+                FROM po_receipt_lines prl
+                JOIN purchase_order_lines pol ON prl.po_line_id = pol.id
+                JOIN items i ON pol.item_id = i.id
+                WHERE prl.receipt_id = ?
+                ORDER BY prl.id
+            ");
+            $rlStmt->execute([$r['id']]);
+            $receiptLines[$r['id']] = $rlStmt->fetchAll();
+        }
+
+        // Existing landed costs
+        $landedCosts = $this->db()->prepare("
+            SELECT lc.*, pr.supplier_invoice_number
+            FROM landed_costs lc
+            JOIN po_receipts pr ON lc.receipt_id = pr.id
+            WHERE pr.po_id = ?
+            ORDER BY lc.created_at DESC
+        ");
+        $landedCosts->execute([(int)$id]);
+        $landedCosts = $landedCosts->fetchAll();
+
+        // Allocations for posted costs
+        $allocations = [];
+        foreach ($landedCosts as $lc) {
+            if ($lc['posted']) {
+                $aStmt = $this->db()->prepare("
+                    SELECT lca.*, i.item_code
+                    FROM landed_cost_allocations lca
+                    JOIN po_receipt_lines prl ON lca.po_receipt_line_id = prl.id
+                    JOIN purchase_order_lines pol ON prl.po_line_id = pol.id
+                    JOIN items i ON pol.item_id = i.id
+                    WHERE lca.landed_cost_id = ?
+                ");
+                $aStmt->execute([$lc['id']]);
+                $allocations[$lc['id']] = $aStmt->fetchAll();
+            }
+        }
+
+        $this->renderView('purchase_orders/landed_costs', [
+            'po' => $po,
+            'receipts' => $receipts,
+            'receiptLines' => $receiptLines,
+            'landedCosts' => $landedCosts,
+            'allocations' => $allocations,
+        ]);
+    }
+
+    public function addLandedCost(string $id): void
+    {
+        if (!$this->checkPermission('purchase_orders', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+
+        $po = $this->getOrFail((int)$id);
+
+        $receiptId = (int)($_POST['receipt_id'] ?? 0);
+        $costType = trim($_POST['cost_type'] ?? '');
+        $amount = (float)($_POST['amount'] ?? 0);
+        $method = $_POST['allocation_method'] ?? 'BY_QUANTITY';
+        $notes = trim($_POST['notes'] ?? '');
+
+        if (!$receiptId || !$costType || $amount <= 0) {
+            $this->toast('Receipt, cost type, and amount are required.', 'error');
+            $this->redirect("/purchase-orders/{$id}/landed-costs");
+            return;
+        }
+
+        if (!in_array($method, ['BY_QUANTITY', 'BY_VALUE', 'MANUAL'])) {
+            $method = 'BY_QUANTITY';
+        }
+
+        $this->db()->prepare("
+            INSERT INTO landed_costs (receipt_id, cost_type, amount, allocation_method, notes)
+            VALUES (?, ?, ?, ?, ?)
+        ")->execute([$receiptId, $costType, $amount, $method, $notes ?: null]);
+        $lcId = (int)$this->db()->lastInsertId();
+
+        $this->auditCreate('landed_costs', $lcId, ['po_id' => (int)$id, 'cost_type' => $costType, 'amount' => $amount]);
+        $this->toast('Landed cost added. Post it to allocate to FIFO lots.', 'success');
+        $this->redirect("/purchase-orders/{$id}/landed-costs");
+    }
+
+    public function postLandedCost(string $id, string $lcId): void
+    {
+        if (!$this->checkPermission('purchase_orders', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+
+        $po = $this->getOrFail((int)$id);
+
+        $lcStmt = $this->db()->prepare("SELECT * FROM landed_costs WHERE id = ?");
+        $lcStmt->execute([(int)$lcId]);
+        $lc = $lcStmt->fetch();
+
+        if (!$lc) {
+            $this->toast('Landed cost not found.', 'error');
+            $this->redirect("/purchase-orders/{$id}/landed-costs");
+            return;
+        }
+        if ($lc['posted']) {
+            $this->toast('This landed cost has already been posted.', 'error');
+            $this->redirect("/purchase-orders/{$id}/landed-costs");
+            return;
+        }
+
+        // Get receipt lines for this receipt
+        $rlStmt = $this->db()->prepare("
+            SELECT prl.id, prl.received_quantity, prl.unit_cost,
+                   (SELECT GROUP_CONCAT(prlot.fifo_lot_id) FROM po_receipt_lots prlot WHERE prlot.receipt_line_id = prl.id) as fifo_lot_ids
+            FROM po_receipt_lines prl
+            WHERE prl.receipt_id = ?
+        ");
+        $rlStmt->execute([$lc['receipt_id']]);
+        $receiptLines = $rlStmt->fetchAll();
+
+        if (empty($receiptLines)) {
+            $this->toast('No receipt lines to allocate to.', 'error');
+            $this->redirect("/purchase-orders/{$id}/landed-costs");
+            return;
+        }
+
+        $method = $lc['allocation_method'];
+        $totalAmount = (float)$lc['amount'];
+
+        // Calculate totals for proportional allocation
+        $totalQty = 0;
+        $totalValue = 0;
+        foreach ($receiptLines as $rl) {
+            $totalQty += (float)$rl['received_quantity'];
+            $totalValue += (float)$rl['received_quantity'] * (float)$rl['unit_cost'];
+        }
+
+        // Manual allocations from POST
+        $manualAllocations = $_POST['manual_allocation'] ?? [];
+
+        $this->db()->beginTransaction();
+        try {
+            $allocInsert = $this->db()->prepare("
+                INSERT INTO landed_cost_allocations (landed_cost_id, po_receipt_line_id, allocated_amount, fifo_lot_id)
+                VALUES (?, ?, ?, ?)
+            ");
+            $lotUpdate = $this->db()->prepare("UPDATE fifo_lots SET unit_cost = unit_cost + ?, updated_at = NOW() WHERE id = ?");
+
+            foreach ($receiptLines as $rl) {
+                // Calculate allocation amount
+                if ($method === 'MANUAL') {
+                    $allocated = (float)($manualAllocations[$rl['id']] ?? 0);
+                } elseif ($method === 'BY_VALUE' && $totalValue > 0) {
+                    $lineValue = (float)$rl['received_quantity'] * (float)$rl['unit_cost'];
+                    $allocated = $totalAmount * ($lineValue / $totalValue);
+                } else {
+                    // BY_QUANTITY (default)
+                    $allocated = $totalQty > 0 ? $totalAmount * ((float)$rl['received_quantity'] / $totalQty) : 0;
+                }
+
+                if ($allocated <= 0) continue;
+
+                // Get first FIFO lot for this receipt line
+                $fifoLotId = null;
+                if ($rl['fifo_lot_ids']) {
+                    $fifoLotId = (int)explode(',', $rl['fifo_lot_ids'])[0];
+                }
+
+                $allocInsert->execute([(int)$lcId, $rl['id'], round($allocated, 4), $fifoLotId]);
+
+                // Update FIFO lot unit cost
+                if ($fifoLotId && (float)$rl['received_quantity'] > 0) {
+                    $costAdj = $allocated / (float)$rl['received_quantity'];
+                    $lotUpdate->execute([round($costAdj, 4), $fifoLotId]);
+                }
+            }
+
+            // Mark as posted
+            $this->db()->prepare("UPDATE landed_costs SET posted = 1, updated_at = NOW() WHERE id = ?")->execute([(int)$lcId]);
+
+            $this->db()->commit();
+
+            $this->auditLog('UPDATE', 'landed_costs', (int)$lcId, ['posted' => 0], ['posted' => 1]);
+            $this->toast('Landed cost posted and allocated to FIFO lots.', 'success');
+        } catch (\Throwable $e) {
+            $this->db()->rollBack();
+            $this->toast('Error posting: ' . $e->getMessage(), 'error');
+        }
+
+        $this->redirect("/purchase-orders/{$id}/landed-costs");
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────
 
     private function buildPoPdfHtml(array $po, array $lines): string
