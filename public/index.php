@@ -368,6 +368,7 @@ $router->mount('/mrp', function () use ($router) {
     $router->get('/export',                        "{$c}@export");
     $router->post('/suggestions/batch/(\d+)',      "{$c}@createBatchFromSuggestion");
     $router->post('/suggestions/po/(\d+)',         "{$c}@createPoFromSuggestion");
+    $router->post('/bulk-pos',                     "{$c}@createBulkPos");
 });
 $router->mount('/production', function () use ($router) {
     $c = 'PrecisionInk\\Controllers\\MrpController';
