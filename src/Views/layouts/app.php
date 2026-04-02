@@ -33,6 +33,9 @@ $__navActive = function(string $prefix) use ($__currentPath) {
 };
 
 $__navGroups = [
+    ['label'=>'','items'=>[
+        ['label'=>'Items','url'=>'/items','prefix'=>'/items','icon'=>'inventory'],
+    ]],
     ['label'=>'Production','items'=>[
         ['label'=>'Batch Tickets','url'=>'/batches','prefix'=>'/batches','icon'=>'batch'],
         ['label'=>'MRP','url'=>'/mrp','prefix'=>'/mrp','icon'=>'mrp'],
@@ -45,7 +48,7 @@ $__navGroups = [
     ]],
     ['label'=>'Purchasing','items'=>[
         ['label'=>'Purchase Orders','url'=>'/purchase-orders','prefix'=>'/purchase-orders','icon'=>'po'],
-        ['label'=>'Requisitions','url'=>'/requisitions','prefix'=>'/requisitions','icon'=>'req'],
+        ['label'=>'Requisitions','url'=>'/purchase-requisitions','prefix'=>'/purchase-requisitions','icon'=>'req'],
         ['label'=>'Suppliers','url'=>'/suppliers','prefix'=>'/suppliers','icon'=>'supplier'],
     ]],
     ['label'=>'Sales','items'=>[
@@ -69,7 +72,6 @@ $__navGroups = [
         ['label'=>'All Reports','url'=>'/reports','prefix'=>'/reports','icon'=>'report'],
     ]],
     ['label'=>'Admin','items'=>[
-        ['label'=>'Items','url'=>'/items','prefix'=>'/items','icon'=>'inventory'],
         ['label'=>'Settings','url'=>'/settings/company','prefix'=>'/settings','icon'=>'settings'],
         ['label'=>'Users','url'=>'/users','prefix'=>'/users','icon'=>'customer'],
     ]],
@@ -109,6 +111,33 @@ $__iconSvg = [
     .app-layout .old-content .app-header { display: none !important; }
     .app-layout .old-content { max-width: 100%; }
     .app-layout .old-content > div[style*="max-width"] { max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
+    /* Force dark mode text colors on all old content */
+    .dark .old-content { color: #f1f5f9 !important; }
+    .dark .old-content h1, .dark .old-content h2, .dark .old-content h3,
+    .dark .old-content h4, .dark .old-content h5 { color: #f1f5f9 !important; }
+    .dark .old-content td, .dark .old-content th { color: #e2e8f0; }
+    .dark .old-content label { color: #94a3b8; }
+    .dark .old-content .data-table { background: #1e293b; border-color: #334155; }
+    .dark .old-content .data-table th { background: #162032; color: #94a3b8; border-color: #334155; }
+    .dark .old-content .data-table td { border-color: #1e293b; }
+    .dark .old-content .data-table tbody tr:hover td { background: #162032; }
+    .dark .old-content input, .dark .old-content select, .dark .old-content textarea {
+      background: #374151 !important; color: #f1f5f9 !important; border-color: #4b5563 !important;
+    }
+    .dark .old-content .settings-nav { background: #1e293b; border-color: #334155; }
+    .dark .old-content .nav-link { color: #e2e8f0; }
+    .dark .old-content a.nav-link:hover { background: #162032; color: #f1f5f9; }
+    .dark .old-content .nav-link.active { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .dark .old-content .settings-content { color: #f1f5f9; }
+    .dark .old-content .form-section, .dark .old-content .dropdown-add-form {
+      background: #1e293b; border-color: #334155;
+    }
+    .dark .old-content .settings-card { background: #1e293b; border-color: #334155; }
+    .dark .old-content .btn-secondary { background: #1e293b; color: #e2e8f0; border-color: #334155; }
+    .dark .old-content .btn-secondary:hover { background: #162032; }
+    .dark .old-content .tab-btn, .dark .old-content .tab-bar button { color: #94a3b8; background: transparent; }
+    .dark .old-content .tab-btn.active, .dark .old-content .tab-bar button.active { color: #60a5fa; background: transparent; }
+    .dark .old-content .toast { display: none; } /* Layout handles toasts */
   </style>
 </head>
 <body>
@@ -126,7 +155,7 @@ $__iconSvg = [
       </a>
       <?php foreach ($__navGroups as $__group): ?>
       <div class="nav-group">
-        <div class="nav-group-label"><?= htmlspecialchars($__group['label']) ?></div>
+        <?php if ($__group['label']): ?><div class="nav-group-label"><?= htmlspecialchars($__group['label']) ?></div><?php endif; ?>
         <?php foreach ($__group['items'] as $__item): ?>
         <a href="<?= $__item['url'] ?>" class="nav-item <?= $__navActive($__item['prefix']) ? 'active' : '' ?>" data-label="<?= htmlspecialchars($__item['label']) ?>">
           <?= $__iconSvg[$__item['icon']] ?? '' ?>

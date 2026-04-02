@@ -19,6 +19,9 @@ $cardNames = [
 
 // Nav structure
 $navGroups = [
+    ['label'=>'','items'=>[
+        ['label'=>'Items','url'=>'/items','prefix'=>'/items','icon'=>'inventory'],
+    ]],
     ['label'=>'Production','items'=>[
         ['label'=>'Batch Tickets','url'=>'/batches','prefix'=>'/batches','icon'=>'batch'],
         ['label'=>'MRP','url'=>'/mrp','prefix'=>'/mrp','icon'=>'mrp'],
@@ -31,7 +34,7 @@ $navGroups = [
     ]],
     ['label'=>'Purchasing','items'=>[
         ['label'=>'Purchase Orders','url'=>'/purchase-orders','prefix'=>'/purchase-orders','icon'=>'po'],
-        ['label'=>'Requisitions','url'=>'/requisitions','prefix'=>'/requisitions','icon'=>'req'],
+        ['label'=>'Requisitions','url'=>'/purchase-requisitions','prefix'=>'/purchase-requisitions','icon'=>'req'],
         ['label'=>'Suppliers','url'=>'/suppliers','prefix'=>'/suppliers','icon'=>'supplier'],
     ]],
     ['label'=>'Sales','items'=>[
@@ -45,16 +48,18 @@ $navGroups = [
         ['label'=>'Inspections','url'=>'/qc/inspection','prefix'=>'/qc','icon'=>'qc'],
         ['label'=>'QC Specs','url'=>'/qc/specs','prefix'=>'/qc/specs','icon'=>'qc'],
         ['label'=>'SCARs','url'=>'/scars','prefix'=>'/scars','icon'=>'scar'],
+        ['label'=>'RMA','url'=>'/rma','prefix'=>'/rma','icon'=>'scar'],
     ]],
     ['label'=>'Finance','items'=>[
         ['label'=>'Price Lists','url'=>'/price-lists','prefix'=>'/price-lists','icon'=>'finance'],
         ['label'=>'QB Sync','url'=>'/qb-sync','prefix'=>'/qb-sync','icon'=>'finance'],
-        ['label'=>'Reports','url'=>'/reports','prefix'=>'/reports','icon'=>'report'],
+    ]],
+    ['label'=>'Reports','items'=>[
+        ['label'=>'All Reports','url'=>'/reports','prefix'=>'/reports','icon'=>'report'],
     ]],
     ['label'=>'Admin','items'=>[
-        ['label'=>'Items','url'=>'/items','prefix'=>'/items','icon'=>'inventory'],
-        ['label'=>'Recipes','url'=>'/items','prefix'=>'/recipes','icon'=>'recipe'],
         ['label'=>'Settings','url'=>'/settings/company','prefix'=>'/settings','icon'=>'settings'],
+        ['label'=>'Users','url'=>'/users','prefix'=>'/users','icon'=>'customer'],
     ]],
 ];
 
@@ -104,7 +109,7 @@ $iconSvg = [
       </a>
       <?php foreach ($navGroups as $group): ?>
       <div class="nav-group">
-        <div class="nav-group-label"><?= htmlspecialchars($group['label']) ?></div>
+        <?php if ($group['label']): ?><div class="nav-group-label"><?= htmlspecialchars($group['label']) ?></div><?php endif; ?>
         <?php foreach ($group['items'] as $item): ?>
         <a href="<?= $item['url'] ?>" class="nav-item" data-label="<?= htmlspecialchars($item['label']) ?>">
           <?= $iconSvg[$item['icon']] ?? '' ?>
