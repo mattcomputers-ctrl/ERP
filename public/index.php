@@ -72,11 +72,18 @@ $router->mount('/items', function () use ($router) {
     $router->post('/(\d+)/substitutions',       'PrecisionInk\\Controllers\\ItemController@saveSubstitution');
     $router->post('/(\d+)/substitutions/(\d+)/deactivate', 'PrecisionInk\\Controllers\\ItemController@deactivateSubstitution');
     $router->post('/(\d+)/location',            'PrecisionInk\\Controllers\\ItemController@saveLocation');
-});
 
-// ── Recipes ─────────────────────────────────────────────────────────
-$router->mount('/recipes', function () use ($router) {
-    // TODO: formulation / bill-of-materials management
+    // Recipe routes nested under items
+    $router->get('/(\d+)/recipes',                          'PrecisionInk\\Controllers\\RecipeController@index');
+    $router->get('/(\d+)/recipes/create',                   'PrecisionInk\\Controllers\\RecipeController@create');
+    $router->post('/(\d+)/recipes/create',                  'PrecisionInk\\Controllers\\RecipeController@store');
+    $router->get('/(\d+)/recipes/(\d+)',                    'PrecisionInk\\Controllers\\RecipeController@view');
+    $router->get('/(\d+)/recipes/(\d+)/edit',               'PrecisionInk\\Controllers\\RecipeController@editForm');
+    $router->post('/(\d+)/recipes/(\d+)/edit',              'PrecisionInk\\Controllers\\RecipeController@update');
+    $router->post('/(\d+)/recipes/(\d+)/activate',          'PrecisionInk\\Controllers\\RecipeController@activate');
+    $router->post('/(\d+)/recipes/(\d+)/deactivate',        'PrecisionInk\\Controllers\\RecipeController@deactivate');
+    $router->post('/(\d+)/recipes/(\d+)/set-default',       'PrecisionInk\\Controllers\\RecipeController@setDefault');
+    $router->post('/(\d+)/recipes/(\d+)/clone',             'PrecisionInk\\Controllers\\RecipeController@cloneVersion');
 });
 
 // ── Suppliers ───────────────────────────────────────────────────────
@@ -184,7 +191,7 @@ $router->mount('/reports', function () use ($router) {
 
 // ── API ─────────────────────────────────────────────────────────────
 $router->mount('/api', function () use ($router) {
-    // TODO: RESTful JSON endpoints
+    $router->get('/v1/items/(\d+)/recipe', 'PrecisionInk\\Controllers\\RecipeController@sdsApi');
 });
 
 // ── Settings ────────────────────────────────────────────────────────

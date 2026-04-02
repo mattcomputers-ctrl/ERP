@@ -383,22 +383,45 @@
 
         <!-- Recipes Tab -->
         <div id="tab-recipes" class="tab-panel">
+            <div style="display:flex; justify-content:flex-end; margin-bottom:8px;">
+                <a href="/items/<?= $item['id'] ?>/recipes/create" class="btn btn-primary btn-sm">+ New Version</a>
+            </div>
             <?php if (empty($recipes)): ?>
-                <p style="color:#9ca3af;">No recipes — <a href="/recipes/create?item_id=<?= $item['id'] ?>" style="color:#2563eb;">add one</a></p>
+                <p style="color:#9ca3af;">No recipes — <a href="/items/<?= $item['id'] ?>/recipes/create" style="color:#2563eb;">add one</a></p>
             <?php else: ?>
                 <table class="data-table">
                     <thead>
-                        <tr><th>Version</th><th>Yield %</th><th>Default</th><th>Active</th><th>Created By</th><th>Created</th></tr>
+                        <tr><th>Version #</th><th>Version Name</th><th>Active</th><th>Default</th><th>Yield %</th><th>Created By</th><th>Created</th><th>Actions</th></tr>
                     </thead>
                     <tbody>
                         <?php foreach ($recipes as $r): ?>
-                        <tr>
-                            <td><a href="/recipes/<?= $r['id'] ?>" style="color:#2563eb; text-decoration:none;">v<?= (int)$r['version_number'] ?></a></td>
-                            <td><?= $r['yield_percentage'] !== null ? number_format((float)$r['yield_percentage'], 2) . '%' : '—' ?></td>
-                            <td><?= $r['is_default'] ? '<span style="color:#16a34a;">Yes</span>' : '' ?></td>
+                        <tr class="<?= !$r['is_active'] ? 'inactive-row' : '' ?>">
+                            <td>
+                                <a href="/items/<?= $item['id'] ?>/recipes/<?= $r['id'] ?>" style="color:#2563eb; text-decoration:none; font-weight:500;">v<?= (int)$r['version_number'] ?></a>
+                            </td>
+                            <td><?= htmlspecialchars($r['version_name'] ?? '') ?></td>
                             <td><span class="badge <?= $r['is_active'] ? 'badge-active' : 'badge-inactive' ?>"><?= $r['is_active'] ? 'Active' : 'Inactive' ?></span></td>
+                            <td><?= $r['is_default'] ? '<span style="color:#f59e0b; font-size:16px;" title="Default">&#9733;</span>' : '' ?></td>
+                            <td><?= $r['yield_percentage'] !== null ? number_format((float)$r['yield_percentage'], 2) . '%' : '—' ?></td>
                             <td><?= htmlspecialchars($r['created_by_name'] ?? '') ?></td>
                             <td><?= date('M j, Y', strtotime($r['created_at'])) ?></td>
+                            <td class="actions-cell">
+                                <a href="/items/<?= $item['id'] ?>/recipes/<?= $r['id'] ?>" class="btn btn-sm btn-secondary">View</a>
+                                <?php if ($r['is_active']): ?>
+                                    <a href="/items/<?= $item['id'] ?>/recipes/<?= $r['id'] ?>/edit" class="btn btn-sm btn-secondary">Edit</a>
+                                    <?php if (!$r['is_default']): ?>
+                                    <form method="POST" action="/items/<?= $item['id'] ?>/recipes/<?= $r['id'] ?>/set-default" style="display:inline;">
+                                        <button type="submit" class="btn btn-sm btn-secondary" title="Set as default">&#9733;</button>
+                                    </form>
+                                    <?php endif; ?>
+                                    <form method="POST" action="/items/<?= $item['id'] ?>/recipes/<?= $r['id'] ?>/deactivate" style="display:inline;">
+                                        <button type="submit" class="btn btn-sm btn-warning" onclick="return confirm('Deactivate?')">Deactivate</button>
+                                    </form>
+                                <?php endif; ?>
+                                <form method="POST" action="/items/<?= $item['id'] ?>/recipes/<?= $r['id'] ?>/clone" style="display:inline;">
+                                    <button type="submit" class="btn btn-sm btn-secondary">Clone</button>
+                                </form>
+                            </td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
