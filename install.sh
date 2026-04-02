@@ -1,48 +1,79 @@
 #!/usr/bin/env bash
-# ─────────────────────────────────────────────────────────────────────
-# Precision Ink ERP – Installer / Updater
-# Must be run as root (or via sudo).
-# ─────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════
+#  Precision Ink ERP — Automated Installer & Updater
+#
+#  Usage (fresh install):
+#    curl -fsSL https://raw.githubusercontent.com/mattcomputers-ctrl/ERP/claude/custom-fields-infrastructure-FwaSQ/install.sh | sudo bash
+#
+#  Usage (update existing):
+#    cd /var/www/precision-erp && sudo ./install.sh
+#
+#  Supports: Ubuntu 22.04, 24.04 (x86_64)
+# ═══════════════════════════════════════════════════════════════════════
 set -euo pipefail
 
-# ── Colours ──────────────────────────────────────────────────────────
+# ── Branding & Colors ────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
-CYAN='\033[0;36m'; NC='\033[0m'
+CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 
+REPO_URL="https://github.com/mattcomputers-ctrl/ERP.git"
+REPO_BRANCH="claude/custom-fields-infrastructure-FwaSQ"
 APP_DIR="/var/www/precision-erp"
-LOG_FILE="${APP_DIR}/logs/install.log"
-CRON_FILE="/etc/cron.d/precision-erp"
 
-info()    { echo -e "${CYAN}[INFO]${NC}  $*" | tee -a "$LOG_FILE"; }
-success() { echo -e "${GREEN}[OK]${NC}    $*" | tee -a "$LOG_FILE"; }
-warn()    { echo -e "${YELLOW}[WARN]${NC}  $*" | tee -a "$LOG_FILE"; }
-fail()    { echo -e "${RED}[FAIL]${NC}  $*" | tee -a "$LOG_FILE"; exit 1; }
+banner() {
+    echo ""
+    echo -e "${CYAN}${BOLD}"
+    echo "  ╔══════════════════════════════════════════════════╗"
+    echo "  ║        Precision Ink ERP — Installer v1.0       ║"
+    echo "  ╚══════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+}
 
-# ── Pre-flight ───────────────────────────────────────────────────────
-[[ $EUID -ne 0 ]] && fail "This script must be run as root (sudo ./install.sh)"
+info()    { echo -e "  ${CYAN}[INFO]${NC}  $*"; }
+ok()      { echo -e "  ${GREEN}[ OK ]${NC}  $*"; }
+warn()    { echo -e "  ${YELLOW}[WARN]${NC}  $*"; }
+fail()    { echo -e "  ${RED}[FAIL]${NC}  $*"; exit 1; }
+step()    { echo ""; echo -e "  ${BOLD}── $* ──${NC}"; }
 
-mkdir -p "$(dirname "$LOG_FILE")"
-echo "── Install started: $(date -Iseconds) ──" >> "$LOG_FILE"
+# ── Pre-flight checks ────────────────────────────────────────────────
+banner
 
-# ── Detect mode ──────────────────────────────────────────────────────
-if [[ -f "${APP_DIR}/config/config.php" ]]; then
+[[ $EUID -ne 0 ]] && fail "This script must be run as root. Use: sudo bash install.sh"
+
+OS_ID=$(. /etc/os-release 2>/dev/null && echo "$ID" || echo "unknown")
+OS_VER=$(. /etc/os-release 2>/dev/null && echo "$VERSION_ID" || echo "0")
+[[ "$OS_ID" != "ubuntu" ]] && warn "This installer is tested on Ubuntu. Your OS: $OS_ID $OS_VER"
+
+# ── Detect install vs update mode ────────────────────────────────────
+if [[ -f "${APP_DIR}/config/config.php" && -f "${APP_DIR}/public/index.php" ]]; then
     MODE="update"
-    info "Existing installation detected – running UPDATE"
+    info "Existing installation detected at ${APP_DIR}"
+    info "Running in UPDATE mode"
 else
     MODE="install"
-    info "No config found – running FRESH INSTALL"
+    info "No existing installation found"
+    info "Running in FRESH INSTALL mode"
 fi
 
-# ═════════════════════════════════════════════════════════════════════
-# FRESH INSTALL
-# ═════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════
+#  FRESH INSTALL
+# ═══════════════════════════════════════════════════════════════════════
 if [[ "$MODE" == "install" ]]; then
 
-    # ── System packages ──────────────────────────────────────────────
-    info "Updating package lists…"
-    apt-get update -qq >> "$LOG_FILE" 2>&1
+    # ── Step 1: System packages ──────────────────────────────────────
+    step "Installing system packages"
 
-    info "Installing Apache, MySQL, PHP 8.2 and extensions…"
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+
+    # Add PHP PPA if php8.2 not available
+    if ! apt-cache show php8.2 &>/dev/null; then
+        info "Adding PHP 8.2 repository..."
+        apt-get install -y -qq software-properties-common
+        add-apt-repository -y ppa:ondrej/php
+        apt-get update -qq
+    fi
+
     apt-get install -y -qq \
         apache2 \
         mysql-server \
@@ -56,219 +87,302 @@ if [[ "$MODE" == "install" ]]; then
         php8.2-gd \
         php8.2-intl \
         php8.2-bcmath \
-        unzip git curl >> "$LOG_FILE" 2>&1
-    success "System packages installed"
+        unzip git curl
+    ok "Apache, MySQL, PHP 8.2 installed"
 
-    # ── Composer ─────────────────────────────────────────────────────
+    # Start and enable services
+    systemctl enable --now apache2 mysql
+    ok "Services enabled"
+
+    # ── Step 2: Composer ─────────────────────────────────────────────
+    step "Installing Composer"
     if ! command -v composer &>/dev/null; then
-        info "Installing Composer globally…"
-        curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer >> "$LOG_FILE" 2>&1
-        success "Composer installed"
+        curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer --quiet
+        ok "Composer installed"
     else
-        success "Composer already present"
+        ok "Composer already installed"
     fi
 
-    # ── Application files ────────────────────────────────────────────
-    info "Running composer install…"
+    # ── Step 3: Clone repository ─────────────────────────────────────
+    step "Downloading Precision Ink ERP"
+    if [[ -d "${APP_DIR}/.git" ]]; then
+        info "Repository already exists, pulling latest..."
+        cd "$APP_DIR"
+        git fetch origin && git checkout "$REPO_BRANCH" && git pull origin "$REPO_BRANCH"
+    else
+        mkdir -p "$(dirname "$APP_DIR")"
+        git clone -b "$REPO_BRANCH" "$REPO_URL" "$APP_DIR"
+        cd "$APP_DIR"
+    fi
+    ok "Source code downloaded to ${APP_DIR}"
+
+    # ── Step 4: PHP dependencies ─────────────────────────────────────
+    step "Installing PHP dependencies"
     cd "$APP_DIR"
-    composer install --no-interaction --no-dev --optimize-autoloader >> "$LOG_FILE" 2>&1
-    success "Composer dependencies installed"
+    COMPOSER_ALLOW_SUPERUSER=1 composer install --no-interaction --no-dev --optimize-autoloader --quiet
+    ok "Dependencies installed"
 
-    # ── MySQL database & user ────────────────────────────────────────
-    read -rp "Database name [precision_erp]: " DB_NAME
+    # ── Step 5: Storage directories ──────────────────────────────────
+    step "Creating storage directories"
+    mkdir -p storage/attachments storage/backups logs
+    ok "Directories created"
+
+    # ── Step 6: Database setup ───────────────────────────────────────
+    step "Database configuration"
+    echo ""
+    read -rp "    Database name [precision_erp]: " DB_NAME
     DB_NAME="${DB_NAME:-precision_erp}"
-    read -rp "Database user [erp_user]: "     DB_USER
-    DB_USER="${DB_USER:-erp_user}"
-    read -rsp "Database password: "           DB_PASS; echo
-    read -rp "Database host [localhost]: "    DB_HOST
-    DB_HOST="${DB_HOST:-localhost}"
+    read -rp "    Database user [precisionink]: " DB_USER
+    DB_USER="${DB_USER:-precisionink}"
 
-    info "Creating database and user…"
-    mysql -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>> "$LOG_FILE"
-    mysql -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'${DB_HOST}' IDENTIFIED BY '${DB_PASS}';" 2>> "$LOG_FILE"
-    mysql -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'${DB_HOST}'; FLUSH PRIVILEGES;" 2>> "$LOG_FILE"
-    success "Database '${DB_NAME}' and user '${DB_USER}' ready"
+    # Generate a random password or let user choose
+    GENERATED_PASS="$(openssl rand -base64 18 | tr -d '/+=' | head -c 20)"
+    read -rp "    Database password [auto-generated]: " DB_PASS
+    DB_PASS="${DB_PASS:-$GENERATED_PASS}"
 
-    # ── Migration tracking table ─────────────────────────────────────
-    mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" <<-SQL
+    DB_HOST="localhost"
+
+    info "Creating database and user..."
+    mysql -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+    mysql -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'${DB_HOST}' IDENTIFIED BY '${DB_PASS}';"
+    mysql -e "ALTER USER '${DB_USER}'@'${DB_HOST}' IDENTIFIED BY '${DB_PASS}';"
+    mysql -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'${DB_HOST}'; FLUSH PRIVILEGES;"
+    ok "Database '${DB_NAME}' ready"
+
+    # ── Step 7: Run migrations ───────────────────────────────────────
+    step "Running database migrations"
+
+    # Ensure schema_migrations table exists
+    mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e "
         CREATE TABLE IF NOT EXISTS schema_migrations (
-            id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            filename   VARCHAR(255)  NOT NULL UNIQUE,
-            applied_at DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB;
-SQL
-    success "schema_migrations table ensured"
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            migration_name VARCHAR(255) NOT NULL,
+            applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB;" 2>/dev/null
 
-    # ── Run all migrations ───────────────────────────────────────────
-    info "Running migrations…"
+    MIGRATION_COUNT=0
     for file in "${APP_DIR}"/migrations/*.sql; do
         [[ -f "$file" ]] || continue
         base="$(basename "$file")"
-        already=$(mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" \
-            -sse "SELECT COUNT(*) FROM schema_migrations WHERE filename='${base}';")
+        already=$(mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -sse \
+            "SELECT COUNT(*) FROM schema_migrations WHERE migration_name='${base}';" 2>/dev/null || echo "0")
         if [[ "$already" -eq 0 ]]; then
-            mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" < "$file" 2>> "$LOG_FILE"
-            mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" \
-                -e "INSERT INTO schema_migrations (filename) VALUES ('${base}');"
-            success "  Applied: ${base}"
+            if mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" < "$file" 2>/dev/null; then
+                mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e \
+                    "INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('${base}');" 2>/dev/null
+                ok "  Applied: ${base}"
+                ((MIGRATION_COUNT++))
+            else
+                warn "  Partial: ${base} (some statements may have already run)"
+                mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e \
+                    "INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('${base}');" 2>/dev/null
+            fi
         fi
     done
-    success "All migrations applied"
+    ok "${MIGRATION_COUNT} new migration(s) applied"
 
-    # ── Generate config.php ──────────────────────────────────────────
-    read -rp "Application URL [http://localhost]: " APP_URL
-    APP_URL="${APP_URL:-http://localhost}"
-    read -rp "Application name [Precision Ink ERP]: " APP_NAME
-    APP_NAME="${APP_NAME:-Precision Ink ERP}"
-    API_KEY="$(openssl rand -hex 32)"
-    read -rp "Backup path [${APP_DIR}/storage/backups]: " BACKUP_PATH
-    BACKUP_PATH="${BACKUP_PATH:-${APP_DIR}/storage/backups}"
-    read -rp "Session timeout in seconds [1800]: " SESSION_TIMEOUT
-    SESSION_TIMEOUT="${SESSION_TIMEOUT:-1800}"
+    # ── Step 8: Generate config ──────────────────────────────────────
+    step "Generating configuration"
 
-    sed -e "s|{{DB_HOST}}|${DB_HOST}|g" \
-        -e "s|{{DB_NAME}}|${DB_NAME}|g" \
-        -e "s|{{DB_USER}}|${DB_USER}|g" \
-        -e "s|{{DB_PASS}}|${DB_PASS}|g" \
-        -e "s|{{APP_URL}}|${APP_URL}|g" \
-        -e "s|{{APP_NAME}}|${APP_NAME}|g" \
-        -e "s|{{API_KEY}}|${API_KEY}|g" \
-        -e "s|{{BACKUP_PATH}}|${BACKUP_PATH}|g" \
-        -e "s|{{SESSION_TIMEOUT}}|${SESSION_TIMEOUT}|g" \
-        "${APP_DIR}/config/config.php.template" > "${APP_DIR}/config/config.php"
-    success "config.php generated"
+    SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
 
-    # ── Create admin user ────────────────────────────────────────────
-    read -rp "Admin username [admin]: " ADMIN_USER
+    cat > "${APP_DIR}/config/config.php" <<PHPCONFIG
+<?php
+return [
+    'DB_HOST' => '${DB_HOST}',
+    'DB_NAME' => '${DB_NAME}',
+    'DB_USER' => '${DB_USER}',
+    'DB_PASS' => '${DB_PASS}',
+    'APP_URL' => 'http://${SERVER_IP}',
+    'APP_NAME' => 'Precision Ink ERP',
+];
+PHPCONFIG
+    ok "Config file created"
+
+    # ── Step 9: Create admin user ────────────────────────────────────
+    step "Creating admin user"
+    echo ""
+    read -rp "    Admin username [admin]: " ADMIN_USER
     ADMIN_USER="${ADMIN_USER:-admin}"
-    read -rsp "Admin password: " ADMIN_PASS; echo
-    ADMIN_HASH="$(php -r "echo password_hash('${ADMIN_PASS}', PASSWORD_BCRYPT);")"
+    read -rp "    Admin full name [System Administrator]: " ADMIN_NAME
+    ADMIN_NAME="${ADMIN_NAME:-System Administrator}"
+    read -rp "    Admin email [admin@localhost]: " ADMIN_EMAIL
+    ADMIN_EMAIL="${ADMIN_EMAIL:-admin@localhost}"
+    read -rsp "    Admin password [password]: " ADMIN_PASS; echo ""
+    ADMIN_PASS="${ADMIN_PASS:-password}"
 
-    mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" <<-SQL
-        CREATE TABLE IF NOT EXISTS users (
-            id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            username    VARCHAR(100) NOT NULL UNIQUE,
-            password    VARCHAR(255) NOT NULL,
-            role        VARCHAR(50)  NOT NULL DEFAULT 'admin',
-            active      TINYINT(1)   NOT NULL DEFAULT 1,
-            created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB;
-        INSERT INTO users (username, password, role)
-        VALUES ('${ADMIN_USER}', '${ADMIN_HASH}', 'admin')
-        ON DUPLICATE KEY UPDATE password = VALUES(password);
-SQL
-    success "Admin user '${ADMIN_USER}' created"
+    ADMIN_HASH=$(php -r "echo password_hash('${ADMIN_PASS}', PASSWORD_BCRYPT);")
 
-    # ── Apache vhost ─────────────────────────────────────────────────
-    info "Configuring Apache virtual host…"
-    cat > /etc/apache2/sites-available/precision-erp.conf <<-VHOST
+    mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e "
+        INSERT INTO \`groups\` (name, is_system_admin, active)
+        SELECT 'System Administrators', 1, 1
+        FROM dual WHERE NOT EXISTS (SELECT 1 FROM \`groups\` WHERE is_system_admin = 1);
+    " 2>/dev/null || true
+
+    GROUP_ID=$(mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -sse \
+        "SELECT id FROM \`groups\` WHERE is_system_admin = 1 LIMIT 1;" 2>/dev/null || echo "1")
+
+    mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e "
+        INSERT INTO users (username, password_hash, full_name, email, group_id, is_system_admin, active)
+        VALUES ('${ADMIN_USER}', '${ADMIN_HASH}', '${ADMIN_NAME}', '${ADMIN_EMAIL}', ${GROUP_ID}, 1, 1)
+        ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), full_name = VALUES(full_name);
+    " 2>/dev/null || true
+    ok "Admin user '${ADMIN_USER}' created"
+
+    # ── Step 10: System settings ─────────────────────────────────────
+    step "Setting initial system configuration"
+    mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e "
+        INSERT INTO system_settings (setting_key, setting_value) VALUES
+            ('company_name', 'Precision Ink LLC'),
+            ('company_address', ''),
+            ('company_phone', '')
+        ON DUPLICATE KEY UPDATE setting_value = setting_value;
+    " 2>/dev/null || true
+    ok "System settings initialized"
+
+    # ── Step 11: Apache configuration ────────────────────────────────
+    step "Configuring Apache web server"
+
+    # Create .htaccess
+    cat > "${APP_DIR}/public/.htaccess" <<'HTACCESS'
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [QSA,L]
+HTACCESS
+
+    # Create vhost
+    cat > /etc/apache2/sites-available/precision-erp.conf <<VHOST
 <VirtualHost *:80>
-    ServerName $(hostname -f)
+    ServerName ${SERVER_IP}
     DocumentRoot ${APP_DIR}/public
 
     <Directory ${APP_DIR}/public>
         AllowOverride All
         Require all granted
+        Options -Indexes +FollowSymLinks
     </Directory>
 
-    ErrorLog  \${APACHE_LOG_DIR}/precision-erp-error.log
+    <Directory ${APP_DIR}>
+        Require all denied
+    </Directory>
+    <Directory ${APP_DIR}/public>
+        Require all granted
+    </Directory>
+
+    ErrorLog \${APACHE_LOG_DIR}/precision-erp-error.log
     CustomLog \${APACHE_LOG_DIR}/precision-erp-access.log combined
 </VirtualHost>
 VHOST
-    a2enmod rewrite >> "$LOG_FILE" 2>&1
-    a2ensite precision-erp.conf >> "$LOG_FILE" 2>&1
-    systemctl reload apache2 >> "$LOG_FILE" 2>&1
-    success "Apache vhost enabled"
 
-    # ── Permissions ──────────────────────────────────────────────────
-    info "Setting ownership & permissions…"
+    a2enmod rewrite >/dev/null 2>&1
+    a2dissite 000-default.conf >/dev/null 2>&1 || true
+    a2ensite precision-erp.conf >/dev/null 2>&1
+
+    # PHP settings
+    PHP_INI="/etc/php/8.2/apache2/php.ini"
+    if [[ -f "$PHP_INI" ]]; then
+        sed -i 's/^upload_max_filesize.*/upload_max_filesize = 50M/' "$PHP_INI"
+        sed -i 's/^post_max_size.*/post_max_size = 50M/' "$PHP_INI"
+        sed -i 's/^memory_limit.*/memory_limit = 256M/' "$PHP_INI"
+        sed -i 's/^max_execution_time.*/max_execution_time = 120/' "$PHP_INI"
+    fi
+
+    systemctl restart apache2
+    ok "Apache configured and restarted"
+
+    # ── Step 12: File permissions ────────────────────────────────────
+    step "Setting file permissions"
     chown -R www-data:www-data "$APP_DIR"
     find "$APP_DIR" -type d -exec chmod 755 {} \;
     find "$APP_DIR" -type f -exec chmod 644 {} \;
     chmod -R 775 "${APP_DIR}/storage" "${APP_DIR}/logs"
-    success "Permissions set (owner: www-data)"
+    chmod +x "${APP_DIR}/install.sh"
+    ok "Permissions set"
 
-    # ── Cron jobs ────────────────────────────────────────────────────
-    info "Installing cron jobs…"
-    cat > "$CRON_FILE" <<-CRON
-# Precision Ink ERP – Scheduled tasks
-SHELL=/bin/bash
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-# Send pending notifications every 15 minutes
-*/15 * * * * www-data php ${APP_DIR}/cli/notify.php >> ${APP_DIR}/logs/notify.log 2>&1
-
-# Monthly inventory snapshot at 23:59 on the last day of each month
-59 23 28-31 * * www-data [ "\$(date -d tomorrow +\%d)" = "01" ] && php ${APP_DIR}/cli/snapshot.php >> ${APP_DIR}/logs/snapshot.log 2>&1
-
-# Daily database backup at 02:00
-0 2 * * * www-data php ${APP_DIR}/cli/backup.php >> ${APP_DIR}/logs/backup.log 2>&1
-CRON
-    chmod 644 "$CRON_FILE"
-    success "Cron jobs installed (${CRON_FILE})"
+    # ── Step 13: Cron job ────────────────────────────────────────────
+    step "Installing cron job"
+    CRON_LINE="*/15 * * * * www-data /usr/bin/php ${APP_DIR}/cli/notify.php >> ${APP_DIR}/logs/cron.log 2>&1"
+    echo "$CRON_LINE" > /etc/cron.d/precision-erp
+    chmod 644 /etc/cron.d/precision-erp
+    ok "Cron job installed (every 15 minutes)"
 
 fi
 
-# ═════════════════════════════════════════════════════════════════════
-# UPDATE
-# ═════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════
+#  UPDATE MODE
+# ═══════════════════════════════════════════════════════════════════════
 if [[ "$MODE" == "update" ]]; then
 
+    step "Updating Precision Ink ERP"
     cd "$APP_DIR"
 
-    info "Pulling latest changes…"
-    git pull >> "$LOG_FILE" 2>&1
-    success "Repository updated"
+    info "Pulling latest code..."
+    git pull origin "$REPO_BRANCH" 2>/dev/null || git fetch origin && git checkout "$REPO_BRANCH" && git pull
+    ok "Code updated"
 
-    info "Updating Composer dependencies…"
-    composer update --no-interaction --no-dev --optimize-autoloader >> "$LOG_FILE" 2>&1
-    success "Composer dependencies updated"
+    info "Updating dependencies..."
+    COMPOSER_ALLOW_SUPERUSER=1 composer install --no-interaction --no-dev --optimize-autoloader --quiet
+    ok "Dependencies updated"
 
-    # Read DB credentials from existing config
-    DB_HOST="$(php -r "\$c=require '${APP_DIR}/config/config.php'; echo \$c['DB_HOST'];")"
-    DB_NAME="$(php -r "\$c=require '${APP_DIR}/config/config.php'; echo \$c['DB_NAME'];")"
-    DB_USER="$(php -r "\$c=require '${APP_DIR}/config/config.php'; echo \$c['DB_USER'];")"
-    DB_PASS="$(php -r "\$c=require '${APP_DIR}/config/config.php'; echo \$c['DB_PASS'];")"
+    # Read DB creds from config
+    DB_HOST=$(php -r "\$c=require '${APP_DIR}/config/config.php'; echo \$c['DB_HOST'];")
+    DB_NAME=$(php -r "\$c=require '${APP_DIR}/config/config.php'; echo \$c['DB_NAME'];")
+    DB_USER=$(php -r "\$c=require '${APP_DIR}/config/config.php'; echo \$c['DB_USER'];")
+    DB_PASS=$(php -r "\$c=require '${APP_DIR}/config/config.php'; echo \$c['DB_PASS'];")
 
-    # ── Run unapplied migrations ─────────────────────────────────────
-    info "Checking for new migrations…"
+    step "Running new migrations"
+    MIGRATION_COUNT=0
     for file in "${APP_DIR}"/migrations/*.sql; do
         [[ -f "$file" ]] || continue
         base="$(basename "$file")"
-        already=$(mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" \
-            -sse "SELECT COUNT(*) FROM schema_migrations WHERE filename='${base}';")
+        already=$(mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" -sse \
+            "SELECT COUNT(*) FROM schema_migrations WHERE migration_name='${base}';" 2>/dev/null || echo "0")
         if [[ "$already" -eq 0 ]]; then
-            mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" < "$file" 2>> "$LOG_FILE"
-            mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" \
-                -e "INSERT INTO schema_migrations (filename) VALUES ('${base}');"
-            success "  Applied: ${base}"
+            mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" < "$file" 2>/dev/null || true
+            mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" -e \
+                "INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('${base}');" 2>/dev/null
+            ok "  Applied: ${base}"
+            ((MIGRATION_COUNT++))
         fi
     done
-    success "Migrations up to date"
+    ok "${MIGRATION_COUNT} new migration(s) applied"
 
-    # ── Permissions ──────────────────────────────────────────────────
-    info "Updating permissions…"
+    step "Refreshing permissions"
     chown -R www-data:www-data "$APP_DIR"
-    find "$APP_DIR" -type d -exec chmod 755 {} \;
-    find "$APP_DIR" -type f -exec chmod 644 {} \;
     chmod -R 775 "${APP_DIR}/storage" "${APP_DIR}/logs"
-    success "Permissions refreshed"
+    systemctl restart apache2
+    ok "Update complete"
 
 fi
 
-# ═════════════════════════════════════════════════════════════════════
-# Summary
-# ═════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════
+#  DONE
+# ═══════════════════════════════════════════════════════════════════════
 echo ""
-echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}  Precision Ink ERP – ${MODE^^} COMPLETE${NC}"
-echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
-echo -e "  App directory : ${APP_DIR}"
-echo -e "  Log file      : ${LOG_FILE}"
+echo -e "${GREEN}${BOLD}"
+echo "  ╔══════════════════════════════════════════════════════════╗"
+echo "  ║       Precision Ink ERP — ${MODE^^} COMPLETE              ║"
+echo "  ╠══════════════════════════════════════════════════════════╣"
 if [[ "$MODE" == "install" ]]; then
-    echo -e "  URL           : ${APP_URL}"
-    echo -e "  Admin user    : ${ADMIN_USER}"
-    echo -e "  API key       : ${API_KEY}"
+echo "  ║                                                          ║"
+echo "  ║  URL:       http://${SERVER_IP}                          "
+echo "  ║  Username:  ${ADMIN_USER}                                "
+echo "  ║  Password:  (what you entered during setup)              "
+echo "  ║                                                          ║"
+echo "  ║  Config:    ${APP_DIR}/config/config.php                 "
+echo "  ║  Logs:      ${APP_DIR}/logs/                             "
+echo "  ║                                                          ║"
+echo "  ║  NEXT STEPS:                                             ║"
+echo "  ║   1. Open the URL above in your browser                 ║"
+echo "  ║   2. Log in with your admin credentials                 ║"
+echo "  ║   3. Go to Settings > Company to configure               ║"
+echo "  ║   4. Add your first facility in Settings > Facilities    ║"
+echo "  ║   5. Start adding items, customers, and suppliers        ║"
+echo "  ║                                                          ║"
+echo "  ║  TO UPDATE LATER:                                        ║"
+echo "  ║   cd ${APP_DIR} && sudo ./install.sh                    "
 fi
-echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
-echo ""
+echo "  ║                                                          ║"
+echo "  ╚══════════════════════════════════════════════════════════╝"
+echo -e "${NC}"
