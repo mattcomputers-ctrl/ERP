@@ -66,34 +66,35 @@ if [[ "$MODE" == "install" ]]; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
 
-    # Install prerequisites for adding repositories
+    # Install prerequisites
     info "Installing prerequisites..."
-    apt-get install -y software-properties-common ca-certificates apt-transport-https lsb-release gnupg2 curl git unzip 2>&1 | tail -1
+    apt-get install -y software-properties-common ca-certificates curl git unzip 2>&1 | tail -1
 
-    # Add ondrej/php PPA (required for PHP 8.2 on most Ubuntu/Debian)
-    info "Adding PHP repository..."
-    if command -v add-apt-repository &>/dev/null; then
-        # Ubuntu — use PPA
-        add-apt-repository -y ppa:ondrej/php 2>&1 | tail -3
-    else
-        # Debian — use sury.org
-        curl -sSLo /tmp/debsuryorg-archive-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb 2>/dev/null
-        dpkg -i /tmp/debsuryorg-archive-keyring.deb 2>/dev/null || true
-        echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/sury-php.list
-    fi
-    apt-get update -qq
-    ok "PHP repository added"
-
-    # Determine which PHP version to use (prefer 8.2, fall back to 8.3 or 8.1)
+    # Detect PHP version available in default repos first
     PHP_VER=""
-    for v in 8.2 8.3 8.1; do
-        if apt-cache show "php${v}" &>/dev/null 2>&1; then
+    for v in 8.3 8.2 8.4 8.1; do
+        if apt-cache show "php${v}-cli" >/dev/null 2>&1; then
             PHP_VER="$v"
+            info "Found PHP ${v} in default repositories"
             break
         fi
     done
+
+    # If no PHP found in default repos, add ondrej/php PPA and retry
     if [[ -z "$PHP_VER" ]]; then
-        fail "Could not find PHP 8.1, 8.2, or 8.3 in package repositories. Check your sources."
+        info "No PHP 8.x found in default repos — adding ondrej/php PPA..."
+        add-apt-repository -y ppa:ondrej/php 2>&1 | tail -3 || true
+        apt-get update -qq
+        for v in 8.3 8.2 8.4 8.1; do
+            if apt-cache show "php${v}-cli" >/dev/null 2>&1; then
+                PHP_VER="$v"
+                break
+            fi
+        done
+    fi
+
+    if [[ -z "$PHP_VER" ]]; then
+        fail "Could not find any PHP 8.x package. Check your package sources."
     fi
     info "Using PHP ${PHP_VER}"
 
