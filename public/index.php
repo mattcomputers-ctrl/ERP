@@ -175,7 +175,17 @@ $router->mount('/purchase-requisitions', function () use ($router) {
 
 // ── Purchase Orders ─────────────────────────────────────────────────
 $router->mount('/purchase-orders', function () use ($router) {
-    // TODO: PO lifecycle
+    $c = 'PrecisionInk\\Controllers\\PurchaseOrderController';
+    $router->get('/',                                  "{$c}@index");
+    $router->get('/create',                            "{$c}@create");
+    $router->post('/create',                           "{$c}@store");
+    $router->get('/line-cost',                         "{$c}@lineCost");
+    $router->get('/(\d+)',                             "{$c}@show");
+    $router->get('/(\d+)/edit',                        "{$c}@editForm");
+    $router->post('/(\d+)/edit',                       "{$c}@update");
+    $router->post('/(\d+)/cancel',                     "{$c}@cancel");
+    $router->post('/(\d+)/clone',                      "{$c}@clonePO");
+    $router->post('/(\d+)/cancel-line/(\d+)',          "{$c}@cancelLine");
 });
 
 // ── Sales Orders ────────────────────────────────────────────────────
