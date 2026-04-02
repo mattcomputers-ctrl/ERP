@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS dashboard_card_definitions (
   default_cols INT NOT NULL DEFAULT 4,
   required_permission VARCHAR(100) NULL,
   active TINYINT(1) DEFAULT 1
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS dashboard_group_layouts (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS dashboard_group_layouts (
   active TINYINT(1) DEFAULT 1,
   UNIQUE KEY uq_group_card (group_id, card_key),
   FOREIGN KEY (group_id) REFERENCES `groups`(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS dashboard_user_layouts (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS dashboard_user_layouts (
   visible TINYINT(1) DEFAULT 1,
   UNIQUE KEY uq_user_card (user_id, card_key),
   FOREIGN KEY (user_id) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT IGNORE INTO dashboard_card_definitions (card_key, card_name, description, default_cols, required_permission) VALUES
 ('orders_to_ship_today', 'Shipping Today', 'Orders with promised ship date = today', 3, 'sales_orders'),

@@ -136,7 +136,7 @@ class DashboardController extends BaseController
             FROM dashboard_card_definitions d
             WHERE d.active = 1
               AND (d.required_permission IS NULL
-                   OR EXISTS (SELECT 1 FROM group_permissions gp WHERE gp.group_id = ? AND gp.module = d.required_permission AND gp.can_view = 1))
+                   OR EXISTS (SELECT 1 FROM group_permissions gp WHERE gp.group_id = ? AND gp.module COLLATE utf8mb4_unicode_ci = d.required_permission COLLATE utf8mb4_unicode_ci AND gp.can_view = 1))
             ORDER BY d.id ASC
         ');
         $stmt->execute([$groupId]);
