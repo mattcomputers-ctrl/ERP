@@ -232,14 +232,26 @@ $router->mount('/quotes', function () use ($router) {
     $router->post('/(\d+)/clone',      "{$c}@cloneQuote");
 });
 
-// ── Shipments ───────────────────────────────────────────────────────
-$router->mount('/shipments', function () use ($router) {
-    // TODO: outbound shipment tracking
+// ── Shipping ────────────────────────────────────────────────────────
+$router->mount('/shipping', function () use ($router) {
+    $c = 'PrecisionInk\\Controllers\\ShipmentController';
+    $router->get('/create',                    "{$c}@createForm");
+    $router->post('/create',                   "{$c}@store");
+    $router->get('/(\d+)',                     "{$c}@show");
+    $router->post('/(\d+)/delivery-date',      "{$c}@updateDeliveryDate");
+    $router->get('/(\d+)/packing-slip',        "{$c}@packingSlip");
+    $router->get('/(\d+)/bol',                 "{$c}@bol");
 });
 
 // ── Invoices ────────────────────────────────────────────────────────
 $router->mount('/invoices', function () use ($router) {
-    // TODO: AR/AP invoicing
+    $c = 'PrecisionInk\\Controllers\\InvoiceController';
+    $router->get('/',                          "{$c}@index");
+    $router->get('/(\d+)',                     "{$c}@show");
+    $router->get('/(\d+)/pdf',                 "{$c}@pdf");
+    $router->post('/(\d+)/email',              "{$c}@email");
+    $router->post('/(\d+)/edit',               "{$c}@edit");
+    $router->post('/(\d+)/void',               "{$c}@void");
 });
 
 // ── Pick Lists ──────────────────────────────────────────────────────
