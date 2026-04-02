@@ -90,6 +90,53 @@ class DashboardController extends BaseController
         $this->renderView('dashboard', $data);
     }
 
+    public function globalSearch(): void
+    {
+        $q = trim($_GET['q'] ?? '');
+        if (strlen($q) < 2) { $this->jsonResponse([]); return; }
+
+        $like = "%{$q}%";
+        $results = [];
+
+        // Items
+        $s = $this->db()->prepare("SELECT id, item_code as code, description FROM items WHERE (item_code LIKE ? OR description LIKE ?) AND deleted_at IS NULL LIMIT 3");
+        $s->execute([$like, $like]);
+        $items = $s->fetchAll();
+        if (!empty($items)) $results[] = ['type' => 'items', 'label' => 'Items', 'items' => array_map(fn($r) => ['code' => $r['code'], 'description' => $r['description'], 'url' => '/items/' . $r['id']], $items)];
+
+        // Customers
+        $s = $this->db()->prepare("SELECT id, customer_code as code, company_name as description FROM customers WHERE (customer_code LIKE ? OR company_name LIKE ?) AND deleted_at IS NULL LIMIT 3");
+        $s->execute([$like, $like]);
+        $custs = $s->fetchAll();
+        if (!empty($custs)) $results[] = ['type' => 'customers', 'label' => 'Customers', 'items' => array_map(fn($r) => ['code' => $r['code'], 'description' => $r['description'], 'url' => '/customers/' . $r['id']], $custs)];
+
+        // Suppliers
+        $s = $this->db()->prepare("SELECT id, supplier_code as code, company_name as description FROM suppliers WHERE (supplier_code LIKE ? OR company_name LIKE ?) AND deleted_at IS NULL LIMIT 3");
+        $s->execute([$like, $like]);
+        $supps = $s->fetchAll();
+        if (!empty($supps)) $results[] = ['type' => 'suppliers', 'label' => 'Suppliers', 'items' => array_map(fn($r) => ['code' => $r['code'], 'description' => $r['description'], 'url' => '/suppliers/' . $r['id']], $supps)];
+
+        // Batches
+        $s = $this->db()->prepare("SELECT id, batch_number as code, status as description FROM batch_tickets WHERE batch_number LIKE ? LIMIT 3");
+        $s->execute([$like]);
+        $batches = $s->fetchAll();
+        if (!empty($batches)) $results[] = ['type' => 'batches', 'label' => 'Batches', 'items' => array_map(fn($r) => ['code' => $r['code'], 'description' => $r['description'], 'url' => '/batches/' . $r['id']], $batches)];
+
+        // Sales Orders
+        $s = $this->db()->prepare("SELECT id, so_number as code, status as description FROM sales_orders WHERE so_number LIKE ? AND deleted_at IS NULL LIMIT 3");
+        $s->execute([$like]);
+        $sos = $s->fetchAll();
+        if (!empty($sos)) $results[] = ['type' => 'orders', 'label' => 'Sales Orders', 'items' => array_map(fn($r) => ['code' => $r['code'], 'description' => $r['description'], 'url' => '/orders/' . $r['id']], $sos)];
+
+        // Purchase Orders
+        $s = $this->db()->prepare("SELECT id, po_number as code, status as description FROM purchase_orders WHERE po_number LIKE ? AND deleted_at IS NULL LIMIT 3");
+        $s->execute([$like]);
+        $pos = $s->fetchAll();
+        if (!empty($pos)) $results[] = ['type' => 'pos', 'label' => 'Purchase Orders', 'items' => array_map(fn($r) => ['code' => $r['code'], 'description' => $r['description'], 'url' => '/purchase-orders/' . $r['id']], $pos)];
+
+        $this->jsonResponse($results);
+    }
+
     private function getActiveAnnouncements(int $userId, ?int $groupId): array
     {
         $stmt = $this->db()->prepare("

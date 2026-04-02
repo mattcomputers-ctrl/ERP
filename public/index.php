@@ -57,6 +57,7 @@ $router = new \Bramus\Router\Router();
 
 // ── Dashboard ──────────────────────────────────────────────────────
 $router->get('/', 'PrecisionInk\\Controllers\\DashboardController@index');
+$router->get('/search', 'PrecisionInk\\Controllers\\DashboardController@globalSearch');
 
 // ── Auth ────────────────────────────────────────────────────────────
 $router->mount('/auth', function () use ($router) {

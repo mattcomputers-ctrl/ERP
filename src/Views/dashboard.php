@@ -17,7 +17,30 @@
 <body>
     <header class="app-header">
         <div class="header-left"><a href="/" class="app-logo">Precision Ink ERP</a></div>
-        <div class="header-right" style="display:flex;align-items:center;gap:16px;">
+        <div class="header-right" style="display:flex;align-items:center;gap:12px;">
+            <!-- Global Search -->
+            <div style="position:relative;" x-data="{query:'',results:[]}">
+                <input type="text" id="global-search" x-model="query" @input.debounce.300ms="if(query.length>=2)fetch('/search?q='+encodeURIComponent(query)).then(r=>r.json()).then(d=>results=d);else results=[]"
+                       placeholder="Search... (/)" style="width:220px;padding:4px 10px;border-radius:6px;border:1px solid #555;background:rgba(255,255,255,0.1);color:#fff;font-size:13px;" autocomplete="off">
+                <div x-show="results.length>0" @click.outside="results=[]" style="position:absolute;top:100%;right:0;width:320px;background:#fff;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);margin-top:4px;z-index:200;overflow:hidden;">
+                    <template x-for="group in results" :key="group.type">
+                        <div>
+                            <div style="padding:4px 12px;font-size:11px;font-weight:600;color:#6b7280;background:#f9fafb;text-transform:uppercase;" x-text="group.label"></div>
+                            <template x-for="item in group.items" :key="item.url">
+                                <a :href="item.url" style="display:block;padding:6px 12px;text-decoration:none;color:#111;font-size:13px;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''">
+                                    <strong x-text="item.code"></strong> <span style="color:#6b7280;" x-text="item.description"></span>
+                                </a>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            <!-- Dark Mode Toggle -->
+            <button onclick="toggleDarkMode()" style="background:none;border:none;cursor:pointer;color:#fff;font-size:18px;" title="Toggle dark mode">
+                <span id="icon-moon">&#9790;</span><span id="icon-sun" style="display:none;">&#9788;</span>
+            </button>
+            <!-- Shortcuts -->
+            <button onclick="document.getElementById('shortcuts-modal').classList.toggle('visible')" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:12px;" title="Keyboard shortcuts (?)">&#9000;</button>
             <?php $u=$_SESSION['user']??null;if($u):?><span class="user-name"><?=htmlspecialchars($u['full_name']??$u['username']??'')?></span><?php endif;?>
         </div>
     </header>
@@ -179,6 +202,23 @@
                 <a href="/import" class="quick-btn">Import</a>
                 <a href="/export" class="quick-btn">Export</a>
             </div>
+        </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Modal -->
+    <div id="shortcuts-modal" class="shortcuts-modal" onclick="if(event.target===this)this.classList.remove('visible')">
+        <div class="shortcuts-box">
+            <h3 style="margin:0 0 12px;font-size:16px;font-weight:600;">Keyboard Shortcuts</h3>
+            <table style="width:100%;font-size:13px;">
+                <tr><td style="width:80px;"><span class="shortcut-key">?</span></td><td>Show this help</td></tr>
+                <tr><td><span class="shortcut-key">/</span></td><td>Focus search</td></tr>
+                <tr><td><span class="shortcut-key">Ctrl+K</span></td><td>Focus search</td></tr>
+                <tr><td><span class="shortcut-key">Ctrl+S</span></td><td>Save form</td></tr>
+                <tr><td><span class="shortcut-key">n</span></td><td>New record (list pages)</td></tr>
+                <tr><td><span class="shortcut-key">e</span></td><td>Edit record (view pages)</td></tr>
+                <tr><td><span class="shortcut-key">Esc</span></td><td>Close modals</td></tr>
+            </table>
+            <button onclick="document.getElementById('shortcuts-modal').classList.remove('visible')" class="btn btn-secondary" style="width:100%;margin-top:12px;">Close</button>
         </div>
     </div>
 
