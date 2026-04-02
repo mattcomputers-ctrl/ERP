@@ -154,14 +154,14 @@ if [[ "$MODE" == "install" ]]; then
     # ── Step 6: Database setup ───────────────────────────────────────
     step "Database configuration"
     echo ""
-    read -rp "    Database name [precision_erp]: " DB_NAME
+    read -rp "    Database name [precision_erp]: " DB_NAME < /dev/tty
     DB_NAME="${DB_NAME:-precision_erp}"
-    read -rp "    Database user [precisionink]: " DB_USER
+    read -rp "    Database user [precisionink]: " DB_USER < /dev/tty
     DB_USER="${DB_USER:-precisionink}"
 
     # Generate a random password or let user choose
     GENERATED_PASS="$(openssl rand -base64 18 | tr -d '/+=' | head -c 20)"
-    read -rp "    Database password [auto-generated]: " DB_PASS
+    read -rp "    Database password [auto-generated]: " DB_PASS < /dev/tty
     DB_PASS="${DB_PASS:-$GENERATED_PASS}"
 
     DB_HOST="localhost"
@@ -226,13 +226,13 @@ PHPCONFIG
     # ── Step 9: Create admin user ────────────────────────────────────
     step "Creating admin user"
     echo ""
-    read -rp "    Admin username [admin]: " ADMIN_USER
+    read -rp "    Admin username [admin]: " ADMIN_USER < /dev/tty
     ADMIN_USER="${ADMIN_USER:-admin}"
-    read -rp "    Admin full name [System Administrator]: " ADMIN_NAME
+    read -rp "    Admin full name [System Administrator]: " ADMIN_NAME < /dev/tty
     ADMIN_NAME="${ADMIN_NAME:-System Administrator}"
-    read -rp "    Admin email [admin@localhost]: " ADMIN_EMAIL
+    read -rp "    Admin email [admin@localhost]: " ADMIN_EMAIL < /dev/tty
     ADMIN_EMAIL="${ADMIN_EMAIL:-admin@localhost}"
-    read -rsp "    Admin password [password]: " ADMIN_PASS; echo ""
+    read -rsp "    Admin password [password]: " ADMIN_PASS < /dev/tty; echo ""
     ADMIN_PASS="${ADMIN_PASS:-password}"
 
     ADMIN_HASH=$(php -r "echo password_hash('${ADMIN_PASS}', PASSWORD_BCRYPT);")
