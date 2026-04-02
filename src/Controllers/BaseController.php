@@ -8,6 +8,8 @@ use App\Services\EmailService;
 use App\Services\FacilityService;
 use App\Services\AttachmentService;
 use App\Services\SupplierService;
+use App\Services\CreditService;
+use App\Services\CustomerResolutionService;
 
 abstract class BaseController
 {
@@ -18,6 +20,8 @@ abstract class BaseController
     protected ?AttachmentService $attachmentService = null;
     protected ?CustomFieldService $customFieldService = null;
     protected ?SupplierService $supplierService = null;
+    protected ?CreditService $creditService = null;
+    protected ?CustomerResolutionService $customerResolutionService = null;
 
     /** @var array Static service container, set once at bootstrap time. */
     private static array $container = [];
@@ -57,6 +61,12 @@ abstract class BaseController
         }
         if (isset(self::$container['supplier'])) {
             $this->supplierService = self::$container['supplier'];
+        }
+        if (isset(self::$container['credit'])) {
+            $this->creditService = self::$container['credit'];
+        }
+        if (isset(self::$container['customer_res'])) {
+            $this->customerResolutionService = self::$container['customer_res'];
         }
     }
 

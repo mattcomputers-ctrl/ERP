@@ -39,6 +39,8 @@ $container = [
     'attachments'   => new \App\Services\AttachmentService($pdo, __DIR__ . '/../storage/attachments'),
     'custom_fields' => new \App\Services\CustomFieldService($pdo),
     'supplier'      => new \App\Services\SupplierService($pdo),
+    'credit'        => new \App\Services\CreditService($pdo),
+    'customer_res'  => new \App\Services\CustomerResolutionService($pdo),
 ];
 
 \PrecisionInk\Controllers\BaseController::setContainer($container);
@@ -105,7 +107,30 @@ $router->mount('/suppliers', function () use ($router) {
 
 // ── Customers ───────────────────────────────────────────────────────
 $router->mount('/customers', function () use ($router) {
-    // TODO: customer master data
+    $router->get('/',                                  'PrecisionInk\\Controllers\\CustomerController@index');
+    $router->get('/create',                            'PrecisionInk\\Controllers\\CustomerController@create');
+    $router->post('/create',                           'PrecisionInk\\Controllers\\CustomerController@store');
+    $router->get('/search',                            'PrecisionInk\\Controllers\\CustomerController@search');
+    $router->get('/(\d+)',                             'PrecisionInk\\Controllers\\CustomerController@view');
+    $router->get('/(\d+)/edit',                        'PrecisionInk\\Controllers\\CustomerController@editForm');
+    $router->post('/(\d+)/edit',                       'PrecisionInk\\Controllers\\CustomerController@update');
+    $router->post('/(\d+)/deactivate',                 'PrecisionInk\\Controllers\\CustomerController@deactivate');
+    $router->post('/(\d+)/contacts',                   'PrecisionInk\\Controllers\\CustomerController@saveContact');
+    $router->post('/(\d+)/contacts/(\d+)/deactivate',  'PrecisionInk\\Controllers\\CustomerController@deactivateContact');
+    $router->get('/(\d+)/ship-to/create',              'PrecisionInk\\Controllers\\CustomerController@createShipTo');
+    $router->post('/(\d+)/ship-to/create',             'PrecisionInk\\Controllers\\CustomerController@storeShipTo');
+    $router->get('/(\d+)/ship-to/(\d+)/edit',          'PrecisionInk\\Controllers\\CustomerController@editShipTo');
+    $router->post('/(\d+)/ship-to/(\d+)/edit',         'PrecisionInk\\Controllers\\CustomerController@updateShipTo');
+    $router->post('/(\d+)/ship-to/(\d+)/deactivate',   'PrecisionInk\\Controllers\\CustomerController@deactivateShipTo');
+    $router->post('/(\d+)/crm-profile',                'PrecisionInk\\Controllers\\CustomerController@saveCrmProfile');
+    $router->post('/(\d+)/activities',                 'PrecisionInk\\Controllers\\CustomerController@saveActivity');
+    $router->post('/(\d+)/tasks',                      'PrecisionInk\\Controllers\\CustomerController@saveTask');
+    $router->post('/(\d+)/tasks/(\d+)/complete',       'PrecisionInk\\Controllers\\CustomerController@completeTask');
+    $router->post('/(\d+)/tasks/(\d+)/cancel',         'PrecisionInk\\Controllers\\CustomerController@cancelTask');
+    $router->post('/(\d+)/prices',                     'PrecisionInk\\Controllers\\CustomerController@savePrice');
+    $router->post('/(\d+)/prices/(\d+)/deactivate',    'PrecisionInk\\Controllers\\CustomerController@deactivatePrice');
+    $router->post('/(\d+)/moq',                        'PrecisionInk\\Controllers\\CustomerController@saveMoq');
+    $router->post('/(\d+)/moq/(\d+)/deactivate',       'PrecisionInk\\Controllers\\CustomerController@deactivateMoq');
 });
 
 // ── Inventory ───────────────────────────────────────────────────────
