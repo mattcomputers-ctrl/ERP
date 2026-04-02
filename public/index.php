@@ -60,9 +60,24 @@ $router->get('/', 'PrecisionInk\\Controllers\\DashboardController@index');
 $router->get('/search', 'PrecisionInk\\Controllers\\DashboardController@globalSearch');
 
 // ── Auth ────────────────────────────────────────────────────────────
-$router->mount('/auth', function () use ($router) {
-    // TODO: login, logout, password reset
-});
+$router->get('/auth/login', 'PrecisionInk\\Controllers\\AuthController@loginForm');
+$router->post('/auth/login', 'PrecisionInk\\Controllers\\AuthController@login');
+$router->get('/auth/logout', 'PrecisionInk\\Controllers\\AuthController@logout');
+
+// ── Auth Guard — redirect to login if not authenticated ─────────────
+$publicPaths = ['/auth/login', '/api/v1/health', '/api/docs'];
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+$isPublic = false;
+foreach ($publicPaths as $pp) {
+    if ($requestPath === $pp || strpos($requestPath, '/api/v1/') === 0) {
+        $isPublic = true;
+        break;
+    }
+}
+if (!$isPublic && empty($_SESSION['user'])) {
+    header('Location: /auth/login');
+    exit;
+}
 
 // ── Items ───────────────────────────────────────────────────────────
 $router->mount('/items', function () use ($router) {

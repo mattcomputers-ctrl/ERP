@@ -248,10 +248,9 @@ PHPCONFIG
     GROUP_ID=$(mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -sse \
         "SELECT id FROM \`groups\` WHERE is_system_admin = 1 LIMIT 1;" 2>/dev/null || echo "1")
 
-    mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e "
-        INSERT INTO users (username, password_hash, full_name, email, group_id, is_system_admin, active)
-        VALUES ('${ADMIN_USER}', '${ADMIN_HASH}', '${ADMIN_NAME}', '${ADMIN_EMAIL}', ${GROUP_ID}, 1, 1)
-        ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), full_name = VALUES(full_name);
+    mysql --force -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e "
+        INSERT IGNORE INTO users (username, password_hash, full_name, email, group_id, active)
+        VALUES ('${ADMIN_USER}', '${ADMIN_HASH}', '${ADMIN_NAME}', '${ADMIN_EMAIL}', ${GROUP_ID}, 1);
     " 2>/dev/null || true
     ok "Admin user '${ADMIN_USER}' created"
 
