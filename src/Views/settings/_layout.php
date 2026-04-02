@@ -79,6 +79,7 @@
             <div class="nav-group">
                 <h4 class="nav-group-title">Items</h4>
                 <a href="/settings/pack-extensions" class="nav-link <?= ($section ?? '') === 'pack-extensions' ? 'active' : '' ?>">Pack Extensions</a>
+                <a href="/settings/qc-tests" class="nav-link <?= ($section ?? '') === 'qc-tests' ? 'active' : '' ?>">QC Tests</a>
                 <a href="/settings/item-prototypes" class="nav-link <?= ($section ?? '') === 'item-prototypes' ? 'active' : '' ?>">Item Prototypes</a>
                 <a href="/settings/batch-templates" class="nav-link <?= ($section ?? '') === 'batch-templates' ? 'active' : '' ?>">Batch Templates</a>
             </div>

@@ -115,6 +115,9 @@ $router->mount('/items', function () use ($router) {
     $router->post('/(\d+)/packs',               'PrecisionInk\\Controllers\\ItemController@savePack');
     $router->post('/(\d+)/packs/(\d+)/deactivate', 'PrecisionInk\\Controllers\\ItemController@deactivatePack');
     $router->post('/(\d+)/pack-overrides/(\d+)', 'PrecisionInk\\Controllers\\ItemController@savePackOverride');
+    $router->post('/(\d+)/qc-tests',           'PrecisionInk\\Controllers\\ItemController@saveItemQcTest');
+    $router->post('/(\d+)/qc-tests/(\d+)',     'PrecisionInk\\Controllers\\ItemController@updateItemQcTest');
+    $router->post('/(\d+)/qc-tests/(\d+)/deactivate', 'PrecisionInk\\Controllers\\ItemController@deactivateItemQcTest');
     $router->post('/(\d+)/aliases',             'PrecisionInk\\Controllers\\ItemController@saveAlias');
     $router->post('/(\d+)/aliases/(\d+)/deactivate', 'PrecisionInk\\Controllers\\ItemController@deactivateAlias');
     $router->post('/(\d+)/substitutions',       'PrecisionInk\\Controllers\\ItemController@saveSubstitution');
@@ -584,6 +587,12 @@ $router->mount('/settings', function () use ($router) {
     // Equipment
     $router->get('/equipment',           "{$c}@equipment");
     $router->post('/equipment',          "{$c}@saveEquipment");
+
+    // QC Test Library
+    $router->get('/qc-tests',                          "{$c}@qcTestDefinitions");
+    $router->get('/qc-tests/create',                   "{$c}@qcTestDefinitionForm");
+    $router->get('/qc-tests/(\d+)/edit',               "{$c}@qcTestDefinitionForm");
+    $router->post('/qc-tests/save',                    "{$c}@saveQcTestDefinition");
 
     // Pack Extension Types
     $router->get('/pack-extensions',                   "{$c}@packExtensionTypes");

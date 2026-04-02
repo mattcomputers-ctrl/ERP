@@ -241,7 +241,7 @@ class ItemController extends BaseController
         $packTypesStmt->execute([(int)$id]);
         $globalPackTypes = $packTypesStmt->fetchAll();
 
-        // Active QC spec
+        // Active QC spec (legacy)
         $qcSpecStmt = $this->db()->prepare("SELECT * FROM qc_specs WHERE item_id = ? AND is_active = 1 LIMIT 1");
         $qcSpecStmt->execute([(int)$id]);
         $qcSpec = $qcSpecStmt->fetch() ?: null;
@@ -252,6 +252,21 @@ class ItemController extends BaseController
             $qcTestStmt->execute([$qcSpec['id']]);
             $qcSpecTests = $qcTestStmt->fetchAll();
         }
+
+        // Global QC test definitions (all active)
+        $allQcTests = $this->db()->query("SELECT * FROM qc_test_definitions WHERE active = 1 ORDER BY display_sequence, test_name")->fetchAll();
+
+        // Item QC test assignments
+        $itemQcStmt = $this->db()->prepare("
+            SELECT iqt.*, qtd.test_name, qtd.test_type, qtd.uom, qtd.default_min_value, qtd.default_max_value, qtd.description as test_description
+            FROM item_qc_tests iqt
+            JOIN qc_test_definitions qtd ON iqt.qc_test_definition_id = qtd.id
+            WHERE iqt.item_id = ?
+            ORDER BY iqt.display_sequence, qtd.test_name
+        ");
+        $itemQcStmt->execute([(int)$id]);
+        $itemQcTests = $itemQcStmt->fetchAll();
+        $assignedTestIds = array_column($itemQcTests, 'qc_test_definition_id');
 
         $this->renderView('items/view', [
             'item' => $item,
@@ -264,6 +279,9 @@ class ItemController extends BaseController
             'approvedVendors' => $approvedVendors,
             'qcSpec' => $qcSpec,
             'qcSpecTests' => $qcSpecTests,
+            'allQcTests' => $allQcTests,
+            'itemQcTests' => $itemQcTests,
+            'assignedTestIds' => $assignedTestIds,
             'record' => $item,
         ]);
     }
@@ -541,6 +559,58 @@ class ItemController extends BaseController
             $this->toast('Pack override saved.', 'success');
             $this->redirect("/items/{$id}#packs");
         }
+    }
+
+    // ── Item QC Tests ─────────────────────────────────────────────
+
+    public function saveItemQcTest(string $id): void
+    {
+        if (!$this->checkPermission('items', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+
+        $testDefId = (int)($_POST['qc_test_definition_id'] ?? 0);
+        if (!$testDefId) { $this->toast('Test definition required.', 'error'); $this->redirect("/items/{$id}"); return; }
+
+        $minVal = ($_POST['min_value'] ?? '') !== '' ? (float)$_POST['min_value'] : null;
+        $maxVal = ($_POST['max_value'] ?? '') !== '' ? (float)$_POST['max_value'] : null;
+        $isRequired = isset($_POST['is_required']) ? 1 : 0;
+        $sequence = (int)($_POST['display_sequence'] ?? 0);
+
+        $this->db()->prepare("
+            INSERT INTO item_qc_tests (item_id, qc_test_definition_id, min_value, max_value, is_required, display_sequence, active)
+            VALUES (?, ?, ?, ?, ?, ?, 1)
+            ON DUPLICATE KEY UPDATE min_value = VALUES(min_value), max_value = VALUES(max_value),
+                is_required = VALUES(is_required), display_sequence = VALUES(display_sequence), active = 1, updated_at = NOW()
+        ")->execute([(int)$id, $testDefId, $minVal, $maxVal, $isRequired, $sequence]);
+
+        $this->toast('QC test assigned.', 'success');
+        $this->redirect("/items/{$id}#qc-tests");
+    }
+
+    public function updateItemQcTest(string $id, string $assignmentId): void
+    {
+        if (!$this->checkPermission('items', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+
+        $minVal = ($_POST['min_value'] ?? '') !== '' ? (float)$_POST['min_value'] : null;
+        $maxVal = ($_POST['max_value'] ?? '') !== '' ? (float)$_POST['max_value'] : null;
+        $isRequired = isset($_POST['is_required']) ? 1 : 0;
+        $sequence = (int)($_POST['display_sequence'] ?? 0);
+
+        $this->db()->prepare("
+            UPDATE item_qc_tests SET min_value = ?, max_value = ?, is_required = ?, display_sequence = ?, updated_at = NOW()
+            WHERE id = ? AND item_id = ?
+        ")->execute([$minVal, $maxVal, $isRequired, $sequence, (int)$assignmentId, (int)$id]);
+
+        $this->toast('QC test updated.', 'success');
+        $this->redirect("/items/{$id}#qc-tests");
+    }
+
+    public function deactivateItemQcTest(string $id, string $assignmentId): void
+    {
+        if (!$this->checkPermission('items', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+
+        $this->db()->prepare("UPDATE item_qc_tests SET active = 0, updated_at = NOW() WHERE id = ? AND item_id = ?")->execute([(int)$assignmentId, (int)$id]);
+        $this->toast('QC test deactivated for this item.', 'success');
+        $this->redirect("/items/{$id}#qc-tests");
     }
 
     // ── Aliases ────────────────────────────────────────────────────

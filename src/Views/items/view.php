@@ -95,7 +95,7 @@
             <button class="tab-btn" onclick="switchTab('suppliers')">Suppliers</button>
             <button class="tab-btn" onclick="switchTab('custom-fields')">Custom Fields</button>
             <button class="tab-btn" onclick="switchTab('recipes')">Recipes</button>
-            <button class="tab-btn" onclick="switchTab('qc-specs')">QC Specs</button>
+            <button class="tab-btn" onclick="switchTab('qc-tests')">QC Tests</button>
         </div>
 
         <!-- Details Tab -->
@@ -460,33 +460,158 @@
             <?php endif; ?>
         </div>
 
-        <!-- QC Specs Tab -->
-        <div id="tab-qc-specs" class="tab-panel">
-            <?php if (!empty($qcSpec)): ?>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                    <h4 style="margin:0;">Active Spec v<?= (int)$qcSpec['version_number'] ?></h4>
-                    <div style="display:flex;gap:8px;">
-                        <a href="/qc/specs/<?= $qcSpec['id'] ?>/edit" class="btn btn-sm btn-secondary">Edit Spec</a>
-                        <a href="/qc/specs/create?item_id=<?= $item['id'] ?>" class="btn btn-sm btn-secondary">New Version</a>
-                    </div>
-                </div>
-                <table class="data-table">
-                    <thead><tr><th>#</th><th>Test Name</th><th>Type</th><th>Range</th><th>UOM</th><th>Required</th></tr></thead>
-                    <tbody>
-                    <?php $n=1; foreach ($qcSpecTests as $t): ?>
+        <!-- QC Tests Tab -->
+        <div id="tab-qc-tests" class="tab-panel">
+            <?php
+            // Build lookup of assigned test IDs for quick check
+            $assignedMap = [];
+            foreach ($itemQcTests ?? [] as $iqt) {
+                $assignedMap[(int)$iqt['qc_test_definition_id']] = $iqt;
+            }
+            ?>
+
+            <h4 style="margin:0 0 12px 0;">Item QC Tests</h4>
+
+            <table class="data-table">
+                <thead>
                     <tr>
-                        <td style="color:#9ca3af;"><?= $n++ ?></td>
-                        <td style="font-weight:500;"><?= htmlspecialchars($t['test_name']) ?></td>
+                        <th>Test Name</th>
+                        <th>Type</th>
+                        <th>Item Target</th>
+                        <th>Required</th>
+                        <th>Active</th>
+                        <th style="width:200px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php if (empty($allQcTests ?? [])): ?>
+                    <tr><td colspan="6" style="text-align:center;color:#9ca3af;">No global QC tests defined. <a href="/settings/qc-tests" style="color:#2563eb;">Create tests in settings</a></td></tr>
+                <?php else: foreach ($allQcTests as $gTest):
+                    $assigned = $assignedMap[(int)$gTest['id']] ?? null;
+                ?>
+                <tr id="qctest-row-<?= $gTest['id'] ?>">
+                    <td style="font-weight:500;">
+                        <?= htmlspecialchars($gTest['test_name']) ?>
+                        <?php if ($gTest['description']): ?>
+                            <br><small style="color:#6b7280;"><?= htmlspecialchars($gTest['description']) ?></small>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <span class="badge <?= $gTest['test_type'] === 'PASS_FAIL' ? 'badge-info' : 'badge-warning' ?>">
+                            <?= $gTest['test_type'] === 'PASS_FAIL' ? 'Pass/Fail' : 'Numeric' ?>
+                        </span>
+                    </td>
+                    <td>
+                        <?php if ($assigned): ?>
+                            <?php if ($gTest['test_type'] === 'NUMERIC_RANGE'): ?>
+                                <?php if ($assigned['min_value'] !== null || $assigned['max_value'] !== null): ?>
+                                    <?= $assigned['min_value'] !== null ? number_format((float)$assigned['min_value'], 4) : '—' ?>
+                                    –
+                                    <?= $assigned['max_value'] !== null ? number_format((float)$assigned['max_value'], 4) : '—' ?>
+                                    <?= htmlspecialchars($gTest['uom'] ?? '') ?>
+                                <?php else: ?>
+                                    <span style="color:#6b7280;">Default: <?= $gTest['default_min_value'] !== null ? number_format((float)$gTest['default_min_value'], 4) : '—' ?> – <?= $gTest['default_max_value'] !== null ? number_format((float)$gTest['default_max_value'], 4) : '—' ?> <?= htmlspecialchars($gTest['uom'] ?? '') ?></span>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                Pass/Fail
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <span style="color:#9ca3af;">—</span>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <?php if ($assigned): ?>
+                            <?= $assigned['is_required'] ? '<span style="color:#16a34a;">Yes</span>' : 'No' ?>
+                        <?php else: ?>
+                            <span style="color:#9ca3af;">—</span>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <?php if ($assigned): ?>
+                            <?= $assigned['active'] ? '<span style="color:#16a34a;">Active</span>' : '<span style="color:#dc2626;">Inactive</span>' ?>
+                        <?php else: ?>
+                            <span style="color:#9ca3af;">—</span>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <?php if ($assigned): ?>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="toggleQcForm(<?= $gTest['id'] ?>, 'edit')">Edit</button>
+                            <?php if ($assigned['active']): ?>
+                                <form method="POST" action="/items/<?= $item['id'] ?>/qc-tests/<?= $assigned['id'] ?>/deactivate" style="display:inline;">
+                                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
+                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Deactivate this test for this item?')">Deactivate</button>
+                                </form>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <button type="button" class="btn btn-sm btn-primary" onclick="toggleQcForm(<?= $gTest['id'] ?>, 'assign')">Assign</button>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <!-- Inline form row (hidden by default) -->
+                <tr id="qctest-form-<?= $gTest['id'] ?>" style="display:none;background:#f9fafb;">
+                    <td colspan="6">
+                        <form method="POST"
+                              action="<?= $assigned ? "/items/{$item['id']}/qc-tests/{$assigned['id']}" : "/items/{$item['id']}/qc-tests" ?>"
+                              style="display:flex;align-items:center;gap:12px;padding:8px 0;">
+                            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
+                            <?php if (!$assigned): ?>
+                                <input type="hidden" name="qc_test_definition_id" value="<?= $gTest['id'] ?>">
+                            <?php endif; ?>
+
+                            <?php if ($gTest['test_type'] === 'NUMERIC_RANGE'): ?>
+                                <label style="font-size:13px;">Min:
+                                    <input type="number" step="any" name="min_value"
+                                           value="<?= $assigned ? ($assigned['min_value'] ?? $gTest['default_min_value'] ?? '') : ($gTest['default_min_value'] ?? '') ?>"
+                                           style="width:100px;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;">
+                                </label>
+                                <label style="font-size:13px;">Max:
+                                    <input type="number" step="any" name="max_value"
+                                           value="<?= $assigned ? ($assigned['max_value'] ?? $gTest['default_max_value'] ?? '') : ($gTest['default_max_value'] ?? '') ?>"
+                                           style="width:100px;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;">
+                                </label>
+                                <?php if ($gTest['default_min_value'] !== null || $gTest['default_max_value'] !== null): ?>
+                                    <small style="color:#6b7280;">Global default: <?= number_format((float)($gTest['default_min_value'] ?? 0), 4) ?>–<?= number_format((float)($gTest['default_max_value'] ?? 0), 4) ?> <?= htmlspecialchars($gTest['uom'] ?? '') ?></small>
+                                <?php endif; ?>
+                            <?php endif; ?>
+
+                            <label style="font-size:13px;display:inline-flex;align-items:center;gap:4px;">
+                                <input type="checkbox" name="is_required" value="1"
+                                       <?= (!$assigned || $assigned['is_required']) ? 'checked' : '' ?>>
+                                Required
+                            </label>
+                            <label style="font-size:13px;">Seq:
+                                <input type="number" name="display_sequence"
+                                       value="<?= (int)($assigned['display_sequence'] ?? 0) ?>"
+                                       style="width:60px;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;">
+                            </label>
+                            <button type="submit" class="btn btn-sm btn-primary"><?= $assigned ? 'Save' : 'Assign' ?></button>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="toggleQcForm(<?= $gTest['id'] ?>)">Cancel</button>
+                        </form>
+                    </td>
+                </tr>
+                <?php endforeach; endif; ?>
+                </tbody>
+            </table>
+
+            <?php if (!empty($qcSpec)): ?>
+            <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;">
+                <h4 style="margin:0 0 8px 0;color:#6b7280;">Legacy QC Spec (v<?= (int)$qcSpec['version_number'] ?>)</h4>
+                <p style="font-size:13px;color:#9ca3af;">This spec was created before the global test library. It is still used by existing batch tickets.</p>
+                <table class="data-table" style="font-size:13px;">
+                    <thead><tr><th>Test Name</th><th>Type</th><th>Range</th><th>UOM</th><th>Required</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($qcSpecTests as $t): ?>
+                    <tr>
+                        <td><?= htmlspecialchars($t['test_name']) ?></td>
                         <td><span class="badge <?= $t['test_type']==='PASS_FAIL'?'badge-info':'badge-warning' ?>"><?= $t['test_type']==='PASS_FAIL'?'Pass/Fail':'Numeric' ?></span></td>
                         <td><?= $t['test_type']==='NUMERIC_RANGE' ? number_format((float)($t['min_value']??0),4).' — '.number_format((float)($t['max_value']??0),4) : '—' ?></td>
                         <td><?= htmlspecialchars($t['uom'] ?? '') ?></td>
-                        <td><?= $t['is_required'] ? '<span style="color:#16a34a;">Yes</span>' : 'No' ?></td>
+                        <td><?= $t['is_required'] ? 'Yes' : 'No' ?></td>
                     </tr>
                     <?php endforeach; ?>
                     </tbody>
                 </table>
-            <?php else: ?>
-                <p style="color:#9ca3af;">No QC spec defined. <a href="/qc/specs/create?item_id=<?= $item['id'] ?>" style="color:#2563eb;">Create one</a></p>
+            </div>
             <?php endif; ?>
         </div>
     </div>
@@ -514,11 +639,18 @@
             document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
             document.getElementById('tab-' + hash).classList.add('active');
             var btns = document.querySelectorAll('.tab-btn');
-            var tabNames = ['details','packs','aliases','substitutions','locations','suppliers','custom-fields','recipes','qc-specs'];
+            var tabNames = ['details','packs','aliases','substitutions','locations','suppliers','custom-fields','recipes','qc-tests'];
             var idx = tabNames.indexOf(hash);
             if (idx >= 0 && btns[idx]) btns[idx].classList.add('active');
         }
     })();
+
+    // QC test inline form toggle
+    function toggleQcForm(testId, mode) {
+        var row = document.getElementById('qctest-form-' + testId);
+        if (!row) return;
+        row.style.display = row.style.display === 'none' ? '' : 'none';
+    }
 
     // Pack form
     function editPack(pack) {

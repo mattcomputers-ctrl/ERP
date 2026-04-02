@@ -81,12 +81,8 @@ class BatchController extends BaseController
 
         $userId = $this->currentUserId();
 
-        // Lock QC spec
-        $qcSpecId = null;
-        $specStmt = $this->db()->prepare("SELECT id FROM qc_specs WHERE item_id = ? AND is_active = 1 LIMIT 1");
-        $specStmt->execute([$data['item_id']]);
-        $spec = $specStmt->fetch();
-        if ($spec) $qcSpecId = (int)$spec['id'];
+        // Snapshot QC spec from item_qc_tests (or fall back to legacy qc_specs)
+        $qcSpecId = $this->snapshotQcSpec($data['item_id'], $userId);
 
         // Get recipe steps — use percentage-based scaling
         $steps = $this->getRecipeIngredients($data['recipe_version_id']);
@@ -976,6 +972,58 @@ class BatchController extends BaseController
             . ($testRows ? '<table><thead><tr><th>Test</th><th>Specification</th><th>Result</th><th>Pass/Fail</th></tr></thead><tbody>' . $testRows . '</tbody></table>' : '<p>No QC test results recorded.</p>')
             . '<table class="sig"><tr><td>Released By:</td><td>Date:</td></tr></table>
         </body></html>';
+    }
+
+    /**
+     * Snapshot QC tests from item_qc_tests into qc_specs/qc_spec_tests.
+     * Falls back to existing active qc_spec if no item_qc_tests defined.
+     */
+    private function snapshotQcSpec(int $itemId, int $userId): ?int
+    {
+        // Try item_qc_tests first
+        $stmt = $this->db()->prepare("
+            SELECT iqt.*, qtd.test_name, qtd.test_type, qtd.uom,
+                   qtd.default_min_value, qtd.default_max_value
+            FROM item_qc_tests iqt
+            JOIN qc_test_definitions qtd ON iqt.qc_test_definition_id = qtd.id
+            WHERE iqt.item_id = ? AND iqt.active = 1 AND qtd.active = 1
+            ORDER BY iqt.display_sequence ASC
+        ");
+        $stmt->execute([$itemId]);
+        $tests = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        if (!empty($tests)) {
+            // Create snapshot spec
+            $maxV = $this->db()->prepare("SELECT COALESCE(MAX(version_number), 0) FROM qc_specs WHERE item_id = ?");
+            $maxV->execute([$itemId]);
+            $nextVersion = (int)$maxV->fetchColumn() + 1;
+
+            $this->db()->prepare("INSERT INTO qc_specs (item_id, version_number, is_active, created_by, created_at, updated_at) VALUES (?, ?, 0, ?, NOW(), NOW())")
+                ->execute([$itemId, $nextVersion, $userId]);
+            $specId = (int)$this->db()->lastInsertId();
+
+            $ins = $this->db()->prepare("INSERT INTO qc_spec_tests (spec_id, test_name, test_type, min_value, max_value, uom, is_required, display_sequence, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())");
+            foreach ($tests as $i => $t) {
+                $ins->execute([
+                    $specId,
+                    $t['test_name'],
+                    $t['test_type'],
+                    $t['min_value'] ?? $t['default_min_value'],
+                    $t['max_value'] ?? $t['default_max_value'],
+                    $t['uom'],
+                    $t['is_required'],
+                    $t['display_sequence'] ?? (($i + 1) * 10),
+                ]);
+            }
+
+            return $specId;
+        }
+
+        // Fall back to legacy active spec
+        $specStmt = $this->db()->prepare("SELECT id FROM qc_specs WHERE item_id = ? AND is_active = 1 LIMIT 1");
+        $specStmt->execute([$itemId]);
+        $spec = $specStmt->fetch();
+        return $spec ? (int)$spec['id'] : null;
     }
 
     private function getOrFail(int $id): array

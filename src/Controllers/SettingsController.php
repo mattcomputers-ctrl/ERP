@@ -573,6 +573,129 @@ class SettingsController extends BaseController
         $this->redirect('/settings/equipment');
     }
 
+    // ── QC Test Library ──────────────────────────────────────────
+
+    public function qcTestDefinitions(): void
+    {
+        $this->requireAdmin();
+        $tests = $this->db()->query("
+            SELECT qtd.*,
+                   (SELECT COUNT(*) FROM item_qc_tests WHERE qc_test_definition_id = qtd.id) as item_count
+            FROM qc_test_definitions qtd
+            ORDER BY qtd.display_sequence, qtd.test_name
+        ")->fetchAll();
+
+        $this->renderView('settings/_layout', [
+            'title' => 'QC Test Library', 'section' => 'qc-tests',
+            'content' => 'settings/qc_test_definitions',
+            'tests' => $tests,
+        ]);
+    }
+
+    public function qcTestDefinitionForm(string $id = '0'): void
+    {
+        $this->requireAdmin();
+        $test = null;
+        $assignedCount = 0;
+        if ((int)$id > 0) {
+            $stmt = $this->db()->prepare("SELECT * FROM qc_test_definitions WHERE id = ?");
+            $stmt->execute([(int)$id]);
+            $test = $stmt->fetch();
+            if (!$test) { http_response_code(404); echo 'Not found'; exit; }
+            $cnt = $this->db()->prepare("SELECT COUNT(*) FROM item_qc_tests WHERE qc_test_definition_id = ?");
+            $cnt->execute([(int)$id]);
+            $assignedCount = (int)$cnt->fetchColumn();
+        }
+
+        $this->renderView('settings/_layout', [
+            'title' => $test ? 'Edit QC Test' : 'New QC Test', 'section' => 'qc-tests',
+            'content' => 'settings/qc_test_definition_form',
+            'test' => $test, 'assignedCount' => $assignedCount,
+        ]);
+    }
+
+    public function saveQcTestDefinition(): void
+    {
+        $this->requireAdmin();
+        $id = (int)($_POST['id'] ?? 0);
+        $action = $_POST['action'] ?? 'save';
+
+        if ($action === 'deactivate' && $id > 0) {
+            $this->db()->prepare("UPDATE qc_test_definitions SET active = 0, updated_at = NOW() WHERE id = ?")->execute([$id]);
+            $this->auditLog('UPDATE', 'qc_test_definitions', $id, ['active' => 1], ['active' => 0]);
+            $this->toast('QC test deactivated. Existing item assignments unchanged.', 'success');
+            $this->redirect('/settings/qc-tests');
+            return;
+        }
+
+        if ($action === 'activate' && $id > 0) {
+            $this->db()->prepare("UPDATE qc_test_definitions SET active = 1, updated_at = NOW() WHERE id = ?")->execute([$id]);
+            $this->auditLog('UPDATE', 'qc_test_definitions', $id, ['active' => 0], ['active' => 1]);
+            $this->toast('QC test reactivated.', 'success');
+            $this->redirect('/settings/qc-tests');
+            return;
+        }
+
+        $name = trim($_POST['test_name'] ?? '');
+        $type = $_POST['test_type'] ?? 'PASS_FAIL';
+        $minVal = ($type === 'NUMERIC_RANGE' && ($_POST['default_min_value'] ?? '') !== '') ? (float)$_POST['default_min_value'] : null;
+        $maxVal = ($type === 'NUMERIC_RANGE' && ($_POST['default_max_value'] ?? '') !== '') ? (float)$_POST['default_max_value'] : null;
+        $uom = trim($_POST['uom'] ?? '') ?: null;
+        $description = trim($_POST['description'] ?? '') ?: null;
+        $sequence = (int)($_POST['display_sequence'] ?? 0);
+        $active = isset($_POST['active']) ? 1 : 0;
+
+        if (!$name) { $this->toast('Test name is required.', 'error'); $this->redirect('/settings/qc-tests/create'); return; }
+        if (!in_array($type, ['PASS_FAIL', 'NUMERIC_RANGE'])) { $this->toast('Invalid test type.', 'error'); $this->redirect('/settings/qc-tests/create'); return; }
+        if ($type === 'NUMERIC_RANGE' && $minVal !== null && $maxVal !== null && $minVal > $maxVal) {
+            $this->toast('Min value must be ≤ max value.', 'error');
+            $this->redirect($id ? "/settings/qc-tests/{$id}/edit" : '/settings/qc-tests/create');
+            return;
+        }
+
+        // Check uniqueness
+        $dupeCheck = $this->db()->prepare("SELECT id FROM qc_test_definitions WHERE test_name = ? AND id != ?");
+        $dupeCheck->execute([$name, $id]);
+        if ($dupeCheck->fetch()) {
+            $this->toast('A test with that name already exists.', 'error');
+            $this->redirect($id ? "/settings/qc-tests/{$id}/edit" : '/settings/qc-tests/create');
+            return;
+        }
+
+        if ($id > 0) {
+            // Don't allow type change if assigned to items
+            $cnt = $this->db()->prepare("SELECT COUNT(*) FROM item_qc_tests WHERE qc_test_definition_id = ?");
+            $cnt->execute([$id]);
+            if ((int)$cnt->fetchColumn() > 0) {
+                $old = $this->db()->prepare("SELECT test_type FROM qc_test_definitions WHERE id = ?");
+                $old->execute([$id]);
+                $oldType = $old->fetchColumn();
+                if ($oldType !== $type) {
+                    $this->toast('Cannot change test type — test is assigned to items.', 'error');
+                    $this->redirect("/settings/qc-tests/{$id}/edit");
+                    return;
+                }
+            }
+
+            $this->db()->prepare("
+                UPDATE qc_test_definitions SET test_name=?, test_type=?, default_min_value=?, default_max_value=?, uom=?, description=?, display_sequence=?, active=?, updated_at=NOW()
+                WHERE id=?
+            ")->execute([$name, $type, $minVal, $maxVal, $uom, $description, $sequence, $active, $id]);
+            $this->auditLog('UPDATE', 'qc_test_definitions', $id, null, ['test_name' => $name]);
+            $this->toast('QC test updated.', 'success');
+        } else {
+            $this->db()->prepare("
+                INSERT INTO qc_test_definitions (test_name, test_type, default_min_value, default_max_value, uom, description, display_sequence, active)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ")->execute([$name, $type, $minVal, $maxVal, $uom, $description, $sequence, $active]);
+            $newId = (int)$this->db()->lastInsertId();
+            $this->auditCreate('qc_test_definitions', $newId, ['test_name' => $name]);
+            $this->toast('QC test created.', 'success');
+        }
+
+        $this->redirect('/settings/qc-tests');
+    }
+
     // ── Pack Extension Types ──────────────────────────────────────
 
     public function packExtensionTypes(): void
