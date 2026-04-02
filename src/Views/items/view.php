@@ -92,6 +92,7 @@
             <button class="tab-btn" onclick="switchTab('aliases')">Aliases</button>
             <button class="tab-btn" onclick="switchTab('substitutions')">Substitutions</button>
             <button class="tab-btn" onclick="switchTab('locations')">Locations</button>
+            <button class="tab-btn" onclick="switchTab('suppliers')">Suppliers</button>
             <button class="tab-btn" onclick="switchTab('custom-fields')">Custom Fields</button>
             <button class="tab-btn" onclick="switchTab('recipes')">Recipes</button>
         </div>
@@ -368,6 +369,35 @@
             </table>
         </div>
 
+        <!-- Suppliers (AVL) Tab -->
+        <div id="tab-suppliers" class="tab-panel">
+            <?php if (empty($approvedVendors)): ?>
+                <p style="color:#9ca3af;">No approved vendors for this item.</p>
+            <?php else: ?>
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Supplier Code</th><th>Company Name</th><th style="text-align:right;">Approved Cost</th><th>Lead Time</th><th>Preferred</th><th>Active</th></tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($approvedVendors as $av): ?>
+                        <tr class="<?= !$av['active'] ? 'inactive-row' : '' ?>">
+                            <td>
+                                <a href="/suppliers/<?= $av['supplier_id'] ?>" style="color:#2563eb; text-decoration:none; font-weight:500;">
+                                    <?= htmlspecialchars($av['supplier_code']) ?>
+                                </a>
+                            </td>
+                            <td><?= htmlspecialchars($av['supplier_name']) ?></td>
+                            <td style="text-align:right;">$<?= number_format((float)$av['approved_unit_cost'], 4) ?></td>
+                            <td><?= $av['lead_time_days'] !== null ? (int)$av['lead_time_days'] . ' days' : '<span style="color:#9ca3af;">—</span>' ?></td>
+                            <td><?= $av['is_preferred'] ? '<span style="color:#f59e0b; font-size:16px;">&#9733;</span>' : '' ?></td>
+                            <td><span class="badge <?= $av['active'] ? 'badge-active' : 'badge-inactive' ?>"><?= $av['active'] ? 'Active' : 'Inactive' ?></span></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+        </div>
+
         <!-- Custom Fields Tab -->
         <div id="tab-custom-fields" class="tab-panel">
             <?php
@@ -453,7 +483,7 @@
             document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
             document.getElementById('tab-' + hash).classList.add('active');
             var btns = document.querySelectorAll('.tab-btn');
-            var tabNames = ['details','packs','aliases','substitutions','locations','custom-fields','recipes'];
+            var tabNames = ['details','packs','aliases','substitutions','locations','suppliers','custom-fields','recipes'];
             var idx = tabNames.indexOf(hash);
             if (idx >= 0 && btns[idx]) btns[idx].classList.add('active');
         }

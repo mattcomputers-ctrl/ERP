@@ -7,6 +7,7 @@ use App\Services\CustomFieldService;
 use App\Services\EmailService;
 use App\Services\FacilityService;
 use App\Services\AttachmentService;
+use App\Services\SupplierService;
 
 abstract class BaseController
 {
@@ -16,6 +17,7 @@ abstract class BaseController
     protected ?FacilityService $facilityService = null;
     protected ?AttachmentService $attachmentService = null;
     protected ?CustomFieldService $customFieldService = null;
+    protected ?SupplierService $supplierService = null;
 
     /** @var array Static service container, set once at bootstrap time. */
     private static array $container = [];
@@ -52,6 +54,9 @@ abstract class BaseController
         }
         if (isset(self::$container['custom_fields'])) {
             $this->customFieldService = self::$container['custom_fields'];
+        }
+        if (isset(self::$container['supplier'])) {
+            $this->supplierService = self::$container['supplier'];
         }
     }
 

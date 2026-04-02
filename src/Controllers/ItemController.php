@@ -217,6 +217,17 @@ class ItemController extends BaseController
         $recipeStmt->execute([(int)$id]);
         $recipes = $recipeStmt->fetchAll();
 
+        // Approved vendors
+        $avlStmt = $this->db()->prepare("
+            SELECT avl.*, s.supplier_code, s.company_name as supplier_name
+            FROM approved_vendor_list avl
+            JOIN suppliers s ON avl.supplier_id = s.id
+            WHERE avl.item_id = ?
+            ORDER BY avl.active DESC, avl.is_preferred DESC, s.supplier_code ASC
+        ");
+        $avlStmt->execute([(int)$id]);
+        $approvedVendors = $avlStmt->fetchAll();
+
         $this->renderView('items/view', [
             'item' => $item,
             'packExtensions' => $packExtensions,
@@ -224,6 +235,7 @@ class ItemController extends BaseController
             'substitutions' => $substitutions,
             'locations' => $locations,
             'recipes' => $recipes,
+            'approvedVendors' => $approvedVendors,
             'record' => $item,
         ]);
     }

@@ -38,6 +38,7 @@ $container = [
     'facility'      => new \App\Services\FacilityService($pdo),
     'attachments'   => new \App\Services\AttachmentService($pdo, __DIR__ . '/../storage/attachments'),
     'custom_fields' => new \App\Services\CustomFieldService($pdo),
+    'supplier'      => new \App\Services\SupplierService($pdo),
 ];
 
 \PrecisionInk\Controllers\BaseController::setContainer($container);
@@ -88,7 +89,18 @@ $router->mount('/items', function () use ($router) {
 
 // ── Suppliers ───────────────────────────────────────────────────────
 $router->mount('/suppliers', function () use ($router) {
-    // TODO: supplier master data
+    $router->get('/',                              'PrecisionInk\\Controllers\\SupplierController@index');
+    $router->get('/create',                        'PrecisionInk\\Controllers\\SupplierController@create');
+    $router->post('/create',                       'PrecisionInk\\Controllers\\SupplierController@store');
+    $router->get('/search',                        'PrecisionInk\\Controllers\\SupplierController@search');
+    $router->get('/(\d+)',                         'PrecisionInk\\Controllers\\SupplierController@view');
+    $router->get('/(\d+)/edit',                    'PrecisionInk\\Controllers\\SupplierController@editForm');
+    $router->post('/(\d+)/edit',                   'PrecisionInk\\Controllers\\SupplierController@update');
+    $router->post('/(\d+)/deactivate',             'PrecisionInk\\Controllers\\SupplierController@deactivate');
+    $router->post('/(\d+)/contacts',               'PrecisionInk\\Controllers\\SupplierController@saveContact');
+    $router->post('/(\d+)/contacts/(\d+)/deactivate', 'PrecisionInk\\Controllers\\SupplierController@deactivateContact');
+    $router->post('/(\d+)/avl',                    'PrecisionInk\\Controllers\\SupplierController@saveAvl');
+    $router->post('/(\d+)/avl/(\d+)/deactivate',   'PrecisionInk\\Controllers\\SupplierController@deactivateAvl');
 });
 
 // ── Customers ───────────────────────────────────────────────────────
