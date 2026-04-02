@@ -2386,6 +2386,92 @@ class SettingsController extends BaseController
         exit;
     }
 
+    // ── Document Templates ────────────────────────────────────────
+
+    public function documentTemplates(): void
+    {
+        $this->requireAdmin();
+        $renderer = new \App\Services\DocumentRenderer($this->db());
+        $templates = $renderer->getAllTemplates();
+        $this->renderView('settings/document_templates', ['content' => null, 'section' => 'document-templates', 'title' => 'Document Templates', 'templates' => $templates]);
+    }
+
+    public function editDocumentTemplate(string $key): void
+    {
+        $this->requireAdmin();
+        $stmt = $this->db()->prepare('SELECT * FROM document_templates WHERE template_key = ?');
+        $stmt->execute([$key]);
+        $template = $stmt->fetch();
+        if (!$template) { $this->toast('Template not found.', 'error'); $this->redirect('/settings/document-templates'); return; }
+
+        $this->renderView('settings/document_template_edit', ['content' => null, 'section' => 'document-templates', 'title' => 'Edit Template: ' . $template['template_name'], 'template' => $template]);
+    }
+
+    public function saveDocumentTemplate(string $key): void
+    {
+        $this->requireAdmin();
+        $htmlContent = $_POST['html_content'] ?? '';
+        $footerHtml = trim($_POST['footer_html'] ?? '');
+        $templateName = trim($_POST['template_name'] ?? '');
+        $pageSize = $_POST['page_size'] ?? 'letter';
+        $orientation = $_POST['page_orientation'] ?? 'portrait';
+
+        $this->db()->prepare('UPDATE document_templates SET template_name=?, html_content=?, footer_html=?, page_size=?, page_orientation=?, updated_at=NOW() WHERE template_key=?')
+            ->execute([$templateName, $htmlContent, $footerHtml ?: null, $pageSize, $orientation, $key]);
+
+        $this->auditLog('UPDATE', 'document_templates', 0, [], ['template_key' => $key]);
+        $this->toast('Template saved.', 'success');
+        $this->redirect("/settings/document-templates/{$key}/edit");
+    }
+
+    public function previewDocumentTemplate(string $key): void
+    {
+        $this->requireAdmin();
+        $htmlContent = $_POST['html_content'] ?? '';
+        $pageSize = $_POST['page_size'] ?? 'letter';
+        $orientation = $_POST['page_orientation'] ?? 'portrait';
+
+        $sampleData = ['company_name' => 'Precision Ink ERP', 'company_address' => '123 Main St, City, ST 12345', 'company_phone' => '555-0100',
+            'invoice_number' => 'INV00001', 'po_number' => 'PO00001', 'quote_number' => 'QUO00001', 'so_number' => 'SO00001',
+            'shipment_number' => 'SHP00001', 'batch_number' => '260401001', 'scar_number' => 'SCAR00001', 'cm_number' => 'CM-RMA00001', 'rma_number' => 'RMA00001',
+            'customer_name' => 'Sample Customer Inc.', 'supplier_name' => 'Sample Supplier LLC',
+            'billing_address' => '456 Customer Ave, Town, ST 54321', 'ship_to_name' => 'Warehouse A', 'ship_to_address' => '789 Ship St, Port, ST 11111',
+            'facility_name' => 'Main Facility', 'invoice_date' => date('M j, Y'), 'due_date' => date('M j, Y', strtotime('+30 days')),
+            'order_date' => date('M j, Y'), 'quote_date' => date('M j, Y'), 'expiration_date' => date('M j, Y', strtotime('+30 days')),
+            'promised_ship_date' => date('M j, Y', strtotime('+7 days')), 'issue_date' => date('M j, Y'), 'due_date' => date('M j, Y', strtotime('+14 days')),
+            'date_produced' => date('M j, Y'), 'scheduled_date' => date('M j, Y'),
+            'payment_terms' => 'Net 30', 'ship_via' => 'UPS Ground', 'tracking_number' => '1Z999AA10123456784',
+            'item_code' => 'INK-001', 'item_description' => 'Black Offset Ink', 'recipe_version' => 'v1 Standard',
+            'quantity_produced' => '500.0000', 'qc_status' => 'PASS', 'has_tests' => true, 'target_quantity' => '500.0000',
+            'assigned_to' => 'John Doe', 'internal_notes' => 'Sample batch notes', 'is_rush' => false,
+            'subtotal' => '1,250.00', 'total' => '1,250.00', 'total_due' => '1,250.00', 'po_total' => '2,500.00',
+            'credit_total' => '500.00', 'description' => 'Quality issue with lot', 'required_action' => 'Replace defective material',
+            'return_reason' => 'Defective product', 'customer_po' => 'CUST-PO-001',
+            'external_notes' => 'Thank you for your business.',
+            'notes' => 'Please expedite shipping.',
+            'lines' => [
+                ['item_code' => 'INK-001', 'description' => 'Black Offset Ink', 'quantity' => '100.0000', 'unit_price' => '12.50', 'unit_cost' => '8.00', 'extended' => '1,250.00', 'line_total' => '800.00', 'uom' => 'lb', 'lot_number' => '260401001', 'line_num' => '1', 'disposition' => 'RETURN_TO_STOCK', 'pass_fail' => 'PASS'],
+            ],
+            'tests' => [
+                ['test_name' => 'Viscosity', 'spec' => '40.00 — 60.00 cP', 'result' => '52.30', 'pass_fail' => 'PASS'],
+                ['test_name' => 'pH', 'spec' => '7.00 — 9.00', 'result' => '8.10', 'pass_fail' => 'PASS'],
+            ],
+        ];
+
+        $renderer = new \App\Services\DocumentRenderer($this->db());
+        $merged = $renderer->merge($htmlContent, $sampleData);
+
+        // Wrap and render
+        $fullHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:11pt;color:#222;}table{width:100%;border-collapse:collapse;}th,td{padding:5px 7px;}@page{margin:0.75in;}</style></head><body>' . $merged . '</body></html>';
+
+        $dompdf = new \Dompdf\Dompdf();
+        $dompdf->loadHtml($fullHtml);
+        $dompdf->setPaper($pageSize, $orientation);
+        $dompdf->render();
+        $dompdf->stream('preview.pdf', ['Attachment' => false]);
+        exit;
+    }
+
     // ── System Health Dashboard ───────────────────────────────────
 
     public function systemHealth(): void

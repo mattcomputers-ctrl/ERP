@@ -13,6 +13,7 @@ use App\Services\CustomerResolutionService;
 use App\Services\FIFOService;
 use App\Services\ReservationService;
 use App\Services\NotificationService;
+use App\Services\DocumentRenderer;
 
 abstract class BaseController
 {
@@ -28,6 +29,7 @@ abstract class BaseController
     protected ?FIFOService $fifoService = null;
     protected ?ReservationService $reservationService = null;
     protected ?NotificationService $notificationService = null;
+    protected ?DocumentRenderer $documentRenderer = null;
 
     /** @var array Static service container, set once at bootstrap time. */
     private static array $container = [];
@@ -82,6 +84,9 @@ abstract class BaseController
         }
         if (isset(self::$container['notification'])) {
             $this->notificationService = self::$container['notification'];
+        }
+        if (isset(self::$container['renderer'])) {
+            $this->documentRenderer = self::$container['renderer'];
         }
     }
 

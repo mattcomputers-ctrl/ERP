@@ -48,6 +48,7 @@ $container['batch_cost'] = new \App\Services\BatchCostService($pdo, $container['
 $container['pricing'] = new \App\Services\PricingService($pdo);
 $container['traceability'] = new \App\Services\LotTraceabilityService($pdo);
 $container['notification'] = new \App\Services\NotificationService($pdo, $container['email']);
+$container['renderer'] = new \App\Services\DocumentRenderer($pdo);
 
 \PrecisionInk\Controllers\BaseController::setContainer($container);
 
@@ -619,6 +620,12 @@ $router->mount('/settings', function () use ($router) {
     $router->post('/import/dry-run/([\w-]+)',      "{$c}@importDryRun");
     $router->post('/import/commit/([\w-]+)',       "{$c}@importCommit");
     $router->get('/export/([\w-]+)',               "{$c}@exportCsv");
+
+    // Document Templates
+    $router->get('/document-templates',                    "{$c}@documentTemplates");
+    $router->get('/document-templates/([\w-]+)/edit',      "{$c}@editDocumentTemplate");
+    $router->post('/document-templates/([\w-]+)/edit',     "{$c}@saveDocumentTemplate");
+    $router->post('/document-templates/([\w-]+)/preview',  "{$c}@previewDocumentTemplate");
 
     // System Health
     $router->get('/system-health',                 "{$c}@systemHealth");
