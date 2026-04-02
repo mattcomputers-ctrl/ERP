@@ -339,14 +339,66 @@ abstract class BaseController
 
     /**
      * Render a view template with the supplied data.
+     * Automatically wraps in the app layout unless the view is the dashboard
+     * (which has its own layout) or the login page.
      */
     protected function renderView(string $template, array $data = []): void
     {
         if ($this->customFieldService && !isset($data['customFieldService'])) {
             $data['customFieldService'] = $this->customFieldService;
         }
+
+        // Views that manage their own full HTML (no layout wrapping)
+        $noLayoutViews = ['dashboard/index', 'auth/login'];
+        if (in_array($template, $noLayoutViews, true)) {
+            extract($data);
+            require __DIR__ . '/../Views/' . $template . '.php';
+            return;
+        }
+
+        // Settings pages use their own _layout wrapper — render inside app layout
+        // but the settings _layout already has its own HTML doc structure.
+        // For settings, we need to strip the HTML boilerplate from _layout.php output.
+
+        // Save toast before view renders (view may consume it)
+        $__savedToast = $_SESSION['toast'] ?? null;
+
+        // Capture view output
         extract($data);
+        ob_start();
         require __DIR__ . '/../Views/' . $template . '.php';
+        $viewOutput = ob_get_clean();
+
+        // Restore toast for layout to display
+        if ($__savedToast && !isset($_SESSION['toast'])) {
+            $_SESSION['toast'] = $__savedToast;
+        }
+
+        // If the view contains <!DOCTYPE, it's a standalone page — extract just the body content
+        if (stripos($viewOutput, '<!DOCTYPE') !== false) {
+            // Strip everything before and including the opening wrapper div or body content
+            // Remove <!DOCTYPE...> through the header
+            $viewOutput = preg_replace('/^.*?<body[^>]*>\s*/si', '', $viewOutput);
+            // Remove old app-header
+            $viewOutput = preg_replace('/<header class="app-header">.*?<\/header>\s*/si', '', $viewOutput);
+            // Remove closing </body></html> and any script tags for toast/settings.js that layout handles
+            $viewOutput = preg_replace('/<script src="\/assets\/js\/settings\.js"><\/script>\s*/i', '', $viewOutput);
+            $viewOutput = preg_replace('/<script>\s*var\s+toast\s*=\s*document\.getElementById\(\'toast\'\).*?<\/script>\s*/si', '', $viewOutput);
+            $viewOutput = preg_replace('/<script>\s*var\s+t\s*=\s*document\.getElementById\(\'toast\'\).*?<\/script>\s*/si', '', $viewOutput);
+            $viewOutput = preg_replace('/\s*<\/body>\s*<\/html>\s*$/si', '', $viewOutput);
+            // Remove old toast display divs (layout handles toasts now)
+            $viewOutput = preg_replace('/<\?php\s+if\s*\(\s*isset\s*\(\s*\$_SESSION\s*\[\s*\'toast\'\s*\]\s*\)\s*\)\s*:\s*\?>.*?<\?php\s+unset\s*\(\s*\$_SESSION\s*\[\s*\'toast\'\s*\]\s*\)\s*;\s*(endif;)?\s*\?>/si', '', $viewOutput);
+        }
+
+        // Extract page title from <title> tag if present, or from data
+        $__pageTitle = $data['title'] ?? $data['pageTitle'] ?? '';
+        if (!$__pageTitle && preg_match('/<title>([^<]*?)\s*[—-]\s*Precision/i', $viewOutput, $m)) {
+            $__pageTitle = trim($m[1]);
+        }
+
+        // Render inside layout
+        $__content = $viewOutput;
+        require __DIR__ . '/../Views/layouts/app.php';
     }
 
     /**
