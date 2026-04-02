@@ -453,6 +453,21 @@ $router->mount('/reports', function () use ($router) {
     $router->post('/(\w+)/([\w-]+)',                  "{$c}@runReport");
 });
 
+// ── Import / Export ──────────────────────────────────────────────────
+$router->mount('/import', function () use ($router) {
+    $c = 'PrecisionInk\\Controllers\\ImportExportController';
+    $router->get('/',                          "{$c}@importLanding");
+    $router->get('/([\w-]+)',                  "{$c}@importModule");
+    $router->post('/([\w-]+)',                 "{$c}@processImport");
+    $router->get('/([\w-]+)/template',         "{$c}@downloadTemplate");
+    $router->get('/([\w-]+)/sample',           "{$c}@downloadSample");
+});
+$router->mount('/export', function () use ($router) {
+    $c = 'PrecisionInk\\Controllers\\ImportExportController';
+    $router->get('/',                          "{$c}@exportLanding");
+    $router->post('/([\w-]+)',                 "{$c}@exportModule");
+});
+
 // ── API ─────────────────────────────────────────────────────────────
 $router->mount('/api', function () use ($router) {
     $router->get('/v1/items/(\d+)/recipe', 'PrecisionInk\\Controllers\\RecipeController@sdsApi');
