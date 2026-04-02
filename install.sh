@@ -66,28 +66,52 @@ if [[ "$MODE" == "install" ]]; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
 
-    # Always add ondrej/php PPA — required on Ubuntu 22.04/24.04
-    # for php8.2 packages to be available
-    info "Adding PHP 8.2 repository (ppa:ondrej/php)..."
-    apt-get install -y -qq software-properties-common >/dev/null 2>&1
-    add-apt-repository -y ppa:ondrej/php >/dev/null 2>&1
-    apt-get update -qq
+    # Install prerequisites for adding repositories
+    info "Installing prerequisites..."
+    apt-get install -y software-properties-common ca-certificates apt-transport-https lsb-release gnupg2 curl git unzip 2>&1 | tail -1
 
-    apt-get install -y -qq \
+    # Add ondrej/php PPA (required for PHP 8.2 on most Ubuntu/Debian)
+    info "Adding PHP repository..."
+    if command -v add-apt-repository &>/dev/null; then
+        # Ubuntu — use PPA
+        add-apt-repository -y ppa:ondrej/php 2>&1 | tail -3
+    else
+        # Debian — use sury.org
+        curl -sSLo /tmp/debsuryorg-archive-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb 2>/dev/null
+        dpkg -i /tmp/debsuryorg-archive-keyring.deb 2>/dev/null || true
+        echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/sury-php.list
+    fi
+    apt-get update -qq
+    ok "PHP repository added"
+
+    # Determine which PHP version to use (prefer 8.2, fall back to 8.3 or 8.1)
+    PHP_VER=""
+    for v in 8.2 8.3 8.1; do
+        if apt-cache show "php${v}" &>/dev/null 2>&1; then
+            PHP_VER="$v"
+            break
+        fi
+    done
+    if [[ -z "$PHP_VER" ]]; then
+        fail "Could not find PHP 8.1, 8.2, or 8.3 in package repositories. Check your sources."
+    fi
+    info "Using PHP ${PHP_VER}"
+
+    apt-get install -y \
         apache2 \
         mysql-server \
-        php8.2 \
-        libapache2-mod-php8.2 \
-        php8.2-mysql \
-        php8.2-mbstring \
-        php8.2-xml \
-        php8.2-curl \
-        php8.2-zip \
-        php8.2-gd \
-        php8.2-intl \
-        php8.2-bcmath \
-        unzip git curl
-    ok "Apache, MySQL, PHP 8.2 installed"
+        "php${PHP_VER}" \
+        "libapache2-mod-php${PHP_VER}" \
+        "php${PHP_VER}-mysql" \
+        "php${PHP_VER}-mbstring" \
+        "php${PHP_VER}-xml" \
+        "php${PHP_VER}-curl" \
+        "php${PHP_VER}-zip" \
+        "php${PHP_VER}-gd" \
+        "php${PHP_VER}-intl" \
+        "php${PHP_VER}-bcmath" \
+        unzip 2>&1 | tail -5
+    ok "Apache, MySQL, PHP ${PHP_VER} installed"
 
     # Start and enable services
     systemctl enable --now apache2 mysql
@@ -279,7 +303,7 @@ VHOST
     a2ensite precision-erp.conf >/dev/null 2>&1
 
     # PHP settings
-    PHP_INI="/etc/php/8.2/apache2/php.ini"
+    PHP_INI="/etc/php/${PHP_VER}/apache2/php.ini"
     if [[ -f "$PHP_INI" ]]; then
         sed -i 's/^upload_max_filesize.*/upload_max_filesize = 50M/' "$PHP_INI"
         sed -i 's/^post_max_size.*/post_max_size = 50M/' "$PHP_INI"
