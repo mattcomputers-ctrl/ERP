@@ -50,4 +50,4 @@ INSERT IGNORE INTO qb_settings (setting_key, setting_value) VALUES
 ('qb_online_refresh_token', ''),
 ('qb_online_token_expires_at', '');
 
-INSERT IGNORE INTO schema_migrations (filename) VALUES ('0026_qb_sync.sql');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0026_qb_sync.sql');

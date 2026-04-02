@@ -37,4 +37,4 @@ SELECT DISTINCT test_name, test_type, AVG(min_value), AVG(max_value), MAX(uom)
 FROM qc_spec_tests
 GROUP BY test_name, test_type;
 
-INSERT IGNORE INTO schema_migrations (filename) VALUES ('0024_global_qc_tests.sql');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0024_global_qc_tests.sql');

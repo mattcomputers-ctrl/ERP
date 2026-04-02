@@ -49,4 +49,4 @@ INSERT IGNORE INTO dashboard_card_definitions (card_key, card_name, description,
 ('backorder_count', 'Backorders', 'Backordered sales order lines', 3, 'sales_orders'),
 ('announcements', 'Announcements', 'System announcements', 6, NULL);
 
-INSERT IGNORE INTO schema_migrations (filename) VALUES ('0027_dashboard_cards.sql');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0027_dashboard_cards.sql');

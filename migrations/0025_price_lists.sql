@@ -95,4 +95,4 @@ ALTER TABLE purchase_order_lines ADD COLUMN IF NOT EXISTS external_code VARCHAR(
     ADD COLUMN IF NOT EXISTS package_type_id INT NULL,
     ADD COLUMN IF NOT EXISTS qty_per_package DECIMAL(15,4) NULL;
 
-INSERT IGNORE INTO schema_migrations (filename) VALUES ('0025_price_lists.sql');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0025_price_lists.sql');
