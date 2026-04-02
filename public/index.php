@@ -439,11 +439,18 @@ $router->mount('/crm', function () use ($router) {
 // ── Reports ─────────────────────────────────────────────────────────
 $router->mount('/reports', function () use ($router) {
     $c = 'PrecisionInk\\Controllers\\ReportController';
-    $router->get('/crm/rep-activity',        "{$c}@crmRepActivity");
-    $router->get('/crm/contact-frequency',   "{$c}@crmContactFrequency");
-    $router->get('/crm/tasks',               "{$c}@crmTaskReport");
-    $router->get('/crm/rep-customers',       "{$c}@crmRepCustomers");
-    $router->get('/crm/next-contact',        "{$c}@crmNextContact");
+    $router->get('/',                                "{$c}@reportIndex");
+    // CRM reports (existing individual views)
+    $router->get('/crm/rep-activity',                "{$c}@crmRepActivity");
+    $router->get('/crm/contact-frequency',           "{$c}@crmContactFrequency");
+    $router->get('/crm/tasks',                       "{$c}@crmTaskReport");
+    $router->get('/crm/rep-customers',               "{$c}@crmRepCustomers");
+    $router->get('/crm/next-contact',                "{$c}@crmNextContact");
+    // Generic report system
+    $router->get('/(\w+)/([\w-]+)/csv',              "{$c}@exportCsv");
+    $router->get('/(\w+)/([\w-]+)/pdf',              "{$c}@exportPdf");
+    $router->get('/(\w+)/([\w-]+)',                   "{$c}@runReport");
+    $router->post('/(\w+)/([\w-]+)',                  "{$c}@runReport");
 });
 
 // ── API ─────────────────────────────────────────────────────────────

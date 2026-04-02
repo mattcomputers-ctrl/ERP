@@ -32,6 +32,36 @@ echo "[" . date('Y-m-d H:i:s') . "] Starting notification sweep...\n";
 $notificationService->runScheduledChecks();
 echo "  Scheduled checks complete.\n";
 
+// 1b. Run scheduled reports
+$now = new \DateTime();
+$scheduledReports = $pdo->query("SELECT * FROM scheduled_reports WHERE active = 1")->fetchAll();
+$reportsRun = 0;
+foreach ($scheduledReports as $sr) {
+    $isDue = false;
+    $currentTime = $now->format('H:i');
+    $schedTime = substr($sr['schedule_time'] ?? '06:00', 0, 5);
+    if (abs(strtotime($currentTime) - strtotime($schedTime)) > 900) continue; // within 15 min window
+
+    if ($sr['schedule_type'] === 'DAILY') $isDue = true;
+    elseif ($sr['schedule_type'] === 'WEEKLY' && (int)$now->format('w') === (int)($sr['schedule_day'] ?? 1)) $isDue = true;
+    elseif ($sr['schedule_type'] === 'MONTHLY' && (int)$now->format('j') === (int)($sr['schedule_day'] ?? 1)) $isDue = true;
+
+    if (!$isDue) continue;
+    // Skip if already run today
+    if ($sr['last_run_at'] && date('Y-m-d', strtotime($sr['last_run_at'])) === date('Y-m-d')) continue;
+
+    $recipients = array_filter(array_map('trim', explode(',', $sr['recipients'] ?? '')));
+    if (empty($recipients)) continue;
+
+    $emailService->send('report', $recipients, [
+        'subject' => ($sr['report_name'] ?? 'Scheduled Report') . ' — ' . date('M j, Y'),
+        'body' => 'Your scheduled report is ready. Please log in to view the full report.',
+    ]);
+    $pdo->prepare("UPDATE scheduled_reports SET last_run_at = NOW() WHERE id = ?")->execute([$sr['id']]);
+    $reportsRun++;
+}
+if ($reportsRun > 0) echo "  Ran {$reportsRun} scheduled report(s).\n";
+
 // 2. Quote expiry sweep
 $expired = $pdo->exec("UPDATE quotes SET status = 'EXPIRED', updated_at = NOW() WHERE status IN ('DRAFT','SENT') AND expiration_date < CURDATE()");
 echo "  Expired {$expired} quotes.\n";
