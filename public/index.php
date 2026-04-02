@@ -47,6 +47,7 @@ $container['reservation'] = new \App\Services\ReservationService($pdo, $containe
 $container['batch_cost'] = new \App\Services\BatchCostService($pdo, $container['fifo']);
 $container['pricing'] = new \App\Services\PricingService($pdo);
 $container['traceability'] = new \App\Services\LotTraceabilityService($pdo);
+$container['notification'] = new \App\Services\NotificationService($pdo, $container['email']);
 
 \PrecisionInk\Controllers\BaseController::setContainer($container);
 

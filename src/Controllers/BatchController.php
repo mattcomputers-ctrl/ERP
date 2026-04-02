@@ -714,6 +714,15 @@ class BatchController extends BaseController
             $this->db()->commit();
 
             $this->auditLog('UPDATE', 'batch_tickets', (int)$id, ['status' => $batch['status']], ['status' => 'CLOSED', 'yield' => $totalYield, 'cost' => $totalCost]);
+
+            // Batch cost variance notification
+            if ($this->notificationService && $yieldPct < 95) {
+                $this->notificationService->sendAlert('batch_cost_variance', [
+                    'subject' => "Low yield on batch {$batch['batch_number']}: " . number_format($yieldPct, 1) . '%',
+                    'body' => "Batch {$batch['batch_number']} ({$batch['item_code']}) closed with " . number_format($yieldPct, 1) . "% yield (target 100%). Cost: \$" . number_format($totalCost, 2),
+                ], 'batch_ticket', (int)$id);
+            }
+
             $this->toast("Batch {$batch['batch_number']} closed. Yield: " . number_format($totalYield, 4) . ", Cost: $" . number_format($totalCost, 2), 'success');
             $this->redirect("/batches/{$id}");
         } catch (\App\Exceptions\NegativeInventoryException $e) {

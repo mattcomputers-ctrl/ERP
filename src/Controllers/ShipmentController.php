@@ -209,6 +209,15 @@ class ShipmentController extends BaseController
 
             $this->auditCreate('shipments', $shipmentId, ['shipment_number' => $shipmentNumber]);
             $this->auditCreate('invoices', $invoiceId, ['invoice_number' => $invoiceNumber]);
+
+            // Credit override notification if applicable
+            if (!empty($_POST['credit_override_reason']) && $this->notificationService) {
+                $this->notificationService->sendAlert('credit_override_used', [
+                    'subject' => 'Credit override used on shipment ' . $shipmentNumber,
+                    'body' => "User overrode credit limit on shipment {$shipmentNumber}. Reason: " . trim($_POST['credit_override_reason']),
+                ], 'shipment', $shipmentId);
+            }
+
             $this->toast("Shipment {$shipmentNumber} created. Invoice {$invoiceNumber} generated.", 'success');
             $this->redirect("/shipping/{$shipmentId}");
         } catch (\App\Exceptions\NegativeInventoryException $e) {

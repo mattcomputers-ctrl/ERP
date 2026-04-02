@@ -129,6 +129,21 @@ class SalesOrderController extends BaseController
 
             $this->customFieldService->saveValues('sales_orders', $soId, $_POST);
             $this->auditCreate('sales_orders', $soId, ['so_number' => $soNumber]);
+
+            // Credit warning notification
+            if ($this->creditService && $this->notificationService) {
+                $creditCheck = $this->creditService->checkAtOrderEntry($data['customer_id']);
+                if ($creditCheck['show_warning']) {
+                    $custStmt = $this->db()->prepare("SELECT company_name FROM customers WHERE id = ?");
+                    $custStmt->execute([$data['customer_id']]);
+                    $custName = $custStmt->fetchColumn() ?: '';
+                    $this->notificationService->sendAlert('credit_limit_warning', [
+                        'subject' => "Credit limit warning: {$custName}",
+                        'body' => "Order {$soNumber} placed for {$custName}. Exposure: \${$creditCheck['total_exposure']}, Limit: \${$creditCheck['credit_limit']}.",
+                    ], 'sales_order', $soId);
+                }
+            }
+
             $this->toast("Sales order {$soNumber} created.", 'success');
             $this->redirect("/orders/{$soId}");
         } catch (\Throwable $e) {

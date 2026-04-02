@@ -12,6 +12,7 @@ use App\Services\CreditService;
 use App\Services\CustomerResolutionService;
 use App\Services\FIFOService;
 use App\Services\ReservationService;
+use App\Services\NotificationService;
 
 abstract class BaseController
 {
@@ -26,6 +27,7 @@ abstract class BaseController
     protected ?CustomerResolutionService $customerResolutionService = null;
     protected ?FIFOService $fifoService = null;
     protected ?ReservationService $reservationService = null;
+    protected ?NotificationService $notificationService = null;
 
     /** @var array Static service container, set once at bootstrap time. */
     private static array $container = [];
@@ -77,6 +79,9 @@ abstract class BaseController
         }
         if (isset(self::$container['reservation'])) {
             $this->reservationService = self::$container['reservation'];
+        }
+        if (isset(self::$container['notification'])) {
+            $this->notificationService = self::$container['notification'];
         }
     }
 

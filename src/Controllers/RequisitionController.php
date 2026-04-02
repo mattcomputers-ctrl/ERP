@@ -218,6 +218,14 @@ class RequisitionController extends BaseController
 
         $this->db()->prepare("UPDATE purchase_requisitions SET status='SUBMITTED', updated_at=NOW() WHERE id=?")->execute([(int)$id]);
         $this->auditLog('UPDATE', 'purchase_requisitions', (int)$id, ['status'=>'DRAFT'], ['status'=>'SUBMITTED']);
+
+        if ($this->notificationService) {
+            $this->notificationService->sendAlert('requisition_submitted', [
+                'subject' => 'Purchase Requisition ' . $req['req_number'] . ' awaiting approval',
+                'body' => "Requested by: {$req['requested_by_name']}\nRequired by: " . ($req['required_by_date'] ?? 'N/A') . "\nJustification: " . ($req['justification'] ?? 'N/A'),
+            ], 'purchase_requisition', (int)$id);
+        }
+
         $this->toast("Requisition {$req['req_number']} submitted for approval.", 'success');
         $this->redirect("/purchase-requisitions/{$id}");
     }
