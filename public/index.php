@@ -293,6 +293,23 @@ $router->mount('/batches', function () use ($router) {
     $router->get('/(\d+)/cost',                "{$c}@costSummary");
     $router->get('/(\d+)/coa',                 "{$c}@coa");
     $router->post('/(\d+)/coa/email',          "{$c}@coaEmail");
+    $router->get('/(\d+)/packet',              'PrecisionInk\\Controllers\\MrpController@batchPacket');
+});
+
+// ── MRP + Production ────────────────────────────────────────────────
+$router->mount('/mrp', function () use ($router) {
+    $c = 'PrecisionInk\\Controllers\\MrpController';
+    $router->get('/',                              "{$c}@index");
+    $router->post('/run',                          "{$c}@run");
+    $router->get('/export',                        "{$c}@export");
+    $router->post('/suggestions/batch/(\d+)',      "{$c}@createBatchFromSuggestion");
+    $router->post('/suggestions/po/(\d+)',         "{$c}@createPoFromSuggestion");
+});
+$router->mount('/production', function () use ($router) {
+    $c = 'PrecisionInk\\Controllers\\MrpController';
+    $router->get('/calendar',                      "{$c}@calendar");
+    $router->post('/calendar/toggle',              "{$c}@toggleCalendarDay");
+    $router->get('/schedule',                      "{$c}@schedule");
 });
 
 // ── Repack ──────────────────────────────────────────────────────────
