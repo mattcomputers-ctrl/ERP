@@ -159,7 +159,18 @@ $router->mount('/inventory', function () use ($router) {
 
 // ── Purchase Requisitions ───────────────────────────────────────────
 $router->mount('/purchase-requisitions', function () use ($router) {
-    // TODO: internal purchase requests
+    $c = 'PrecisionInk\\Controllers\\RequisitionController';
+    $router->get('/',                  "{$c}@index");
+    $router->get('/create',            "{$c}@create");
+    $router->post('/create',           "{$c}@store");
+    $router->get('/(\d+)',             "{$c}@view");
+    $router->get('/(\d+)/edit',        "{$c}@editForm");
+    $router->post('/(\d+)/edit',       "{$c}@update");
+    $router->post('/(\d+)/submit',     "{$c}@submit");
+    $router->post('/(\d+)/approve',    "{$c}@approve");
+    $router->post('/(\d+)/reject',     "{$c}@reject");
+    $router->post('/(\d+)/convert',    "{$c}@convert");
+    $router->post('/(\d+)/cancel',     "{$c}@cancel");
 });
 
 // ── Purchase Orders ─────────────────────────────────────────────────

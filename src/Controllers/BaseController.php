@@ -161,6 +161,29 @@ abstract class BaseController
     }
 
     /**
+     * Check if the current user has a special permission key.
+     */
+    protected function hasSpecialPermission(string $permissionKey): bool
+    {
+        $user = $this->currentUser();
+        if (!$user) return false;
+        if (!empty($user['is_system_admin'])) return true;
+
+        $groupId = $user['group_id'] ?? null;
+        if (!$groupId) return false;
+
+        // Check group is system admin
+        $stmt = $this->db()->prepare('SELECT is_system_admin FROM `groups` WHERE id = ? AND active = 1');
+        $stmt->execute([$groupId]);
+        $group = $stmt->fetch();
+        if ($group && $group['is_system_admin']) return true;
+
+        $stmt = $this->db()->prepare('SELECT id FROM group_special_permissions WHERE group_id = ? AND permission_key = ?');
+        $stmt->execute([$groupId, $permissionKey]);
+        return (bool)$stmt->fetch();
+    }
+
+    /**
      * Require admin permission — redirect with 403 if denied.
      */
     protected function requireAdmin(): void
