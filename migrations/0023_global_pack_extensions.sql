@@ -49,4 +49,4 @@ FROM item_pack_extensions ipe
 JOIN pack_extension_types pet ON pet.name = ipe.name
 WHERE ipe.active = 1;
 
-INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0023_global_pack_extensions');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0023_global_pack_extensions.sql');

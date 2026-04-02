@@ -11,4 +11,4 @@ JOIN (
 SET rs.percentage = CASE WHEN totals.total > 0 THEN (rs.quantity / totals.total * 100) ELSE 0 END
 WHERE rs.step_type = 'INGREDIENT' AND rs.percentage IS NULL;
 
-INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0022_recipe_percent');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0022_recipe_percent.sql');

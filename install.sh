@@ -361,9 +361,12 @@ if [[ "$MODE" == "update" ]]; then
     for file in "${APP_DIR}"/migrations/*.sql; do
         [[ -f "$file" ]] || continue
         base="$(basename "$file")"
+        base_no_ext="${base%.*}"
+        # Match with or without .sql extension for backward compatibility
         already=$(mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" -sse \
-            "SELECT COUNT(*) FROM schema_migrations WHERE migration_name='${base}';" 2>/dev/null || echo "0")
+            "SELECT COUNT(*) FROM schema_migrations WHERE migration_name LIKE '%${base_no_ext}%';" 2>/dev/null || echo "0")
         if [[ "$already" -eq 0 ]]; then
+            info "  Running: ${base}"
             mysql --force -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" < "$file" 2>/dev/null || true
             mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" -e \
                 "INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('${base}');" 2>/dev/null || true
