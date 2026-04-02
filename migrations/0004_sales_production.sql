@@ -8,7 +8,7 @@ SET CHARACTER SET utf8mb4;
 -- ------------------------------------------------------------
 -- Quotes
 -- ------------------------------------------------------------
-CREATE TABLE quotes (
+CREATE TABLE IF NOT EXISTS quotes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     quote_number VARCHAR(30) NOT NULL UNIQUE,
     customer_id INT NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE quotes (
 -- ------------------------------------------------------------
 -- Quote Lines
 -- ------------------------------------------------------------
-CREATE TABLE quote_lines (
+CREATE TABLE IF NOT EXISTS quote_lines (
     id INT AUTO_INCREMENT PRIMARY KEY,
     quote_id INT NOT NULL,
     item_id INT NOT NULL,
@@ -50,7 +50,7 @@ CREATE TABLE quote_lines (
 -- ------------------------------------------------------------
 -- Sales Orders
 -- ------------------------------------------------------------
-CREATE TABLE sales_orders (
+CREATE TABLE IF NOT EXISTS sales_orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     so_number VARCHAR(30) NOT NULL UNIQUE,
     customer_id INT NOT NULL,
@@ -81,7 +81,7 @@ CREATE TABLE sales_orders (
 -- ------------------------------------------------------------
 -- Sales Order Lines
 -- ------------------------------------------------------------
-CREATE TABLE sales_order_lines (
+CREATE TABLE IF NOT EXISTS sales_order_lines (
     id INT AUTO_INCREMENT PRIMARY KEY,
     so_id INT NOT NULL,
     item_id INT NOT NULL,
@@ -103,7 +103,7 @@ CREATE TABLE sales_order_lines (
 -- ------------------------------------------------------------
 -- Order Surcharges
 -- ------------------------------------------------------------
-CREATE TABLE order_surcharges (
+CREATE TABLE IF NOT EXISTS order_surcharges (
     id INT AUTO_INCREMENT PRIMARY KEY,
     so_id INT NOT NULL,
     surcharge_type_id INT NOT NULL,
@@ -117,7 +117,7 @@ CREATE TABLE order_surcharges (
 -- ------------------------------------------------------------
 -- Freight Quotes
 -- ------------------------------------------------------------
-CREATE TABLE freight_quotes (
+CREATE TABLE IF NOT EXISTS freight_quotes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     so_id INT NOT NULL,
     carrier_name VARCHAR(100) NOT NULL,
@@ -134,7 +134,7 @@ CREATE TABLE freight_quotes (
 -- ------------------------------------------------------------
 -- Pick Lists
 -- ------------------------------------------------------------
-CREATE TABLE pick_lists (
+CREATE TABLE IF NOT EXISTS pick_lists (
     id INT AUTO_INCREMENT PRIMARY KEY,
     pkl_number VARCHAR(30) NOT NULL UNIQUE,
     facility_id INT NOT NULL,
@@ -149,7 +149,7 @@ CREATE TABLE pick_lists (
 -- ------------------------------------------------------------
 -- Pick List Orders
 -- ------------------------------------------------------------
-CREATE TABLE pick_list_orders (
+CREATE TABLE IF NOT EXISTS pick_list_orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     pick_list_id INT NOT NULL,
     so_id INT NOT NULL,
@@ -160,7 +160,7 @@ CREATE TABLE pick_list_orders (
 -- ------------------------------------------------------------
 -- Pick List Lines
 -- ------------------------------------------------------------
-CREATE TABLE pick_list_lines (
+CREATE TABLE IF NOT EXISTS pick_list_lines (
     id INT AUTO_INCREMENT PRIMARY KEY,
     pick_list_id INT NOT NULL,
     so_line_id INT NOT NULL,
@@ -178,7 +178,7 @@ CREATE TABLE pick_list_lines (
 -- ------------------------------------------------------------
 -- Shipments
 -- ------------------------------------------------------------
-CREATE TABLE shipments (
+CREATE TABLE IF NOT EXISTS shipments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     shipment_number VARCHAR(30) NOT NULL UNIQUE,
     facility_id INT NOT NULL,
@@ -198,7 +198,7 @@ CREATE TABLE shipments (
 -- ------------------------------------------------------------
 -- Shipment Orders
 -- ------------------------------------------------------------
-CREATE TABLE shipment_orders (
+CREATE TABLE IF NOT EXISTS shipment_orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     shipment_id INT NOT NULL,
     so_id INT NOT NULL,
@@ -209,7 +209,7 @@ CREATE TABLE shipment_orders (
 -- ------------------------------------------------------------
 -- Shipment Lines
 -- ------------------------------------------------------------
-CREATE TABLE shipment_lines (
+CREATE TABLE IF NOT EXISTS shipment_lines (
     id INT AUTO_INCREMENT PRIMARY KEY,
     shipment_id INT NOT NULL,
     so_line_id INT NOT NULL,
@@ -225,7 +225,7 @@ CREATE TABLE shipment_lines (
 -- ------------------------------------------------------------
 -- Shipment Line Lots
 -- ------------------------------------------------------------
-CREATE TABLE shipment_line_lots (
+CREATE TABLE IF NOT EXISTS shipment_line_lots (
     id INT AUTO_INCREMENT PRIMARY KEY,
     shipment_line_id INT NOT NULL,
     lot_number VARCHAR(100) NOT NULL,
@@ -239,7 +239,7 @@ CREATE TABLE shipment_line_lots (
 -- ------------------------------------------------------------
 -- Invoices
 -- ------------------------------------------------------------
-CREATE TABLE invoices (
+CREATE TABLE IF NOT EXISTS invoices (
     id INT AUTO_INCREMENT PRIMARY KEY,
     invoice_number VARCHAR(30) NOT NULL UNIQUE,
     shipment_id INT NOT NULL,
@@ -268,7 +268,7 @@ CREATE TABLE invoices (
 -- ------------------------------------------------------------
 -- Invoice Edit History
 -- ------------------------------------------------------------
-CREATE TABLE invoice_edit_history (
+CREATE TABLE IF NOT EXISTS invoice_edit_history (
     id INT AUTO_INCREMENT PRIMARY KEY,
     invoice_id INT NOT NULL,
     edited_by INT NOT NULL,
@@ -281,7 +281,7 @@ CREATE TABLE invoice_edit_history (
 -- ------------------------------------------------------------
 -- Batch Templates
 -- ------------------------------------------------------------
-CREATE TABLE batch_templates (
+CREATE TABLE IF NOT EXISTS batch_templates (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(150) NOT NULL,
     item_id INT NOT NULL,
@@ -300,7 +300,7 @@ CREATE TABLE batch_templates (
 -- ------------------------------------------------------------
 -- Batch Template Packs
 -- ------------------------------------------------------------
-CREATE TABLE batch_template_packs (
+CREATE TABLE IF NOT EXISTS batch_template_packs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     template_id INT NOT NULL,
     pack_extension_id INT NOT NULL,
@@ -311,7 +311,7 @@ CREATE TABLE batch_template_packs (
 -- ------------------------------------------------------------
 -- Batch Template Equipment
 -- ------------------------------------------------------------
-CREATE TABLE batch_template_equipment (
+CREATE TABLE IF NOT EXISTS batch_template_equipment (
     id INT AUTO_INCREMENT PRIMARY KEY,
     template_id INT NOT NULL,
     equipment_id INT NOT NULL,
@@ -322,7 +322,7 @@ CREATE TABLE batch_template_equipment (
 -- ------------------------------------------------------------
 -- Batch Tickets
 -- ------------------------------------------------------------
-CREATE TABLE batch_tickets (
+CREATE TABLE IF NOT EXISTS batch_tickets (
     id INT AUTO_INCREMENT PRIMARY KEY,
     batch_number VARCHAR(30) NOT NULL UNIQUE,
     facility_id INT NOT NULL,
@@ -355,7 +355,7 @@ CREATE TABLE batch_tickets (
 -- ------------------------------------------------------------
 -- Batch Ticket Packs
 -- ------------------------------------------------------------
-CREATE TABLE batch_ticket_packs (
+CREATE TABLE IF NOT EXISTS batch_ticket_packs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     batch_id INT NOT NULL,
     pack_extension_id INT NOT NULL,
@@ -370,7 +370,7 @@ CREATE TABLE batch_ticket_packs (
 -- ------------------------------------------------------------
 -- Batch Ticket Lines
 -- ------------------------------------------------------------
-CREATE TABLE batch_ticket_lines (
+CREATE TABLE IF NOT EXISTS batch_ticket_lines (
     id INT AUTO_INCREMENT PRIMARY KEY,
     batch_id INT NOT NULL,
     item_id INT NOT NULL,
@@ -390,7 +390,7 @@ CREATE TABLE batch_ticket_lines (
 -- ------------------------------------------------------------
 -- Batch Ingredient Lots
 -- ------------------------------------------------------------
-CREATE TABLE batch_ingredient_lots (
+CREATE TABLE IF NOT EXISTS batch_ingredient_lots (
     id INT AUTO_INCREMENT PRIMARY KEY,
     batch_id INT NOT NULL,
     batch_line_id INT NOT NULL,
@@ -407,7 +407,7 @@ CREATE TABLE batch_ingredient_lots (
 -- ------------------------------------------------------------
 -- Batch Scrap
 -- ------------------------------------------------------------
-CREATE TABLE batch_scrap (
+CREATE TABLE IF NOT EXISTS batch_scrap (
     id INT AUTO_INCREMENT PRIMARY KEY,
     batch_id INT NOT NULL,
     material_description VARCHAR(255) NOT NULL,
@@ -424,7 +424,7 @@ CREATE TABLE batch_scrap (
 -- ------------------------------------------------------------
 -- Batch Lineage
 -- ------------------------------------------------------------
-CREATE TABLE batch_lineage (
+CREATE TABLE IF NOT EXISTS batch_lineage (
     id INT AUTO_INCREMENT PRIMARY KEY,
     parent_batch_id INT NOT NULL,
     child_batch_id INT NOT NULL,
@@ -436,7 +436,7 @@ CREATE TABLE batch_lineage (
 -- ------------------------------------------------------------
 -- Batch Equipment
 -- ------------------------------------------------------------
-CREATE TABLE batch_equipment (
+CREATE TABLE IF NOT EXISTS batch_equipment (
     id INT AUTO_INCREMENT PRIMARY KEY,
     batch_id INT NOT NULL,
     equipment_id INT NOT NULL,

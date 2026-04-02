@@ -16,4 +16,4 @@ CREATE TABLE IF NOT EXISTS announcement_target_groups (
 -- Add unique constraint on announcement_dismissals if not present
 ALTER TABLE announcement_dismissals ADD UNIQUE KEY uq_dismissal (announcement_id, user_id);
 
-INSERT INTO schema_migrations (migration_name) VALUES ('0011_announcement_target_groups');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0011_announcement_target_groups');

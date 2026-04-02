@@ -8,7 +8,7 @@ SET CHARACTER SET utf8mb4;
 -- ------------------------------------------------------------
 -- FIFO Lots
 -- ------------------------------------------------------------
-CREATE TABLE fifo_lots (
+CREATE TABLE IF NOT EXISTS fifo_lots (
     id INT AUTO_INCREMENT PRIMARY KEY,
     item_id INT NOT NULL,
     pack_extension_id INT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE fifo_lots (
 -- ------------------------------------------------------------
 -- Inventory Transactions
 -- ------------------------------------------------------------
-CREATE TABLE inventory_transactions (
+CREATE TABLE IF NOT EXISTS inventory_transactions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     item_id INT NOT NULL,
     pack_extension_id INT NULL,
@@ -53,7 +53,7 @@ CREATE TABLE inventory_transactions (
 -- ------------------------------------------------------------
 -- Inventory Reservations
 -- ------------------------------------------------------------
-CREATE TABLE inventory_reservations (
+CREATE TABLE IF NOT EXISTS inventory_reservations (
     id INT AUTO_INCREMENT PRIMARY KEY,
     item_id INT NOT NULL,
     facility_id INT NOT NULL,
@@ -69,7 +69,7 @@ CREATE TABLE inventory_reservations (
 -- ------------------------------------------------------------
 -- Inventory Snapshots
 -- ------------------------------------------------------------
-CREATE TABLE inventory_snapshots (
+CREATE TABLE IF NOT EXISTS inventory_snapshots (
     id INT AUTO_INCREMENT PRIMARY KEY,
     snapshot_date DATE NOT NULL,
     item_id INT NOT NULL,
@@ -85,7 +85,7 @@ CREATE TABLE inventory_snapshots (
 -- ------------------------------------------------------------
 -- Cycle Count Sessions
 -- ------------------------------------------------------------
-CREATE TABLE cycle_count_sessions (
+CREATE TABLE IF NOT EXISTS cycle_count_sessions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     facility_id INT NOT NULL,
     status ENUM('OPEN','IN_REVIEW','POSTED','CANCELLED') NOT NULL DEFAULT 'OPEN',
@@ -102,7 +102,7 @@ CREATE TABLE cycle_count_sessions (
 -- ------------------------------------------------------------
 -- Cycle Count Lines
 -- ------------------------------------------------------------
-CREATE TABLE cycle_count_lines (
+CREATE TABLE IF NOT EXISTS cycle_count_lines (
     id INT AUTO_INCREMENT PRIMARY KEY,
     session_id INT NOT NULL,
     item_id INT NOT NULL,
@@ -120,7 +120,7 @@ CREATE TABLE cycle_count_lines (
 -- ------------------------------------------------------------
 -- Purchase Requisitions
 -- ------------------------------------------------------------
-CREATE TABLE purchase_requisitions (
+CREATE TABLE IF NOT EXISTS purchase_requisitions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     req_number VARCHAR(30) NOT NULL UNIQUE,
     requested_by INT NOT NULL,
@@ -140,7 +140,7 @@ CREATE TABLE purchase_requisitions (
 -- ------------------------------------------------------------
 -- Purchase Requisition Lines
 -- ------------------------------------------------------------
-CREATE TABLE purchase_requisition_lines (
+CREATE TABLE IF NOT EXISTS purchase_requisition_lines (
     id INT AUTO_INCREMENT PRIMARY KEY,
     requisition_id INT NOT NULL,
     item_id INT NOT NULL,
@@ -160,7 +160,7 @@ CREATE TABLE purchase_requisition_lines (
 -- ------------------------------------------------------------
 -- Purchase Orders
 -- ------------------------------------------------------------
-CREATE TABLE purchase_orders (
+CREATE TABLE IF NOT EXISTS purchase_orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     po_number VARCHAR(30) NOT NULL UNIQUE,
     po_type ENUM('STANDARD','BLANKET') NOT NULL DEFAULT 'STANDARD',
@@ -187,7 +187,7 @@ CREATE TABLE purchase_orders (
 -- ------------------------------------------------------------
 -- Purchase Order Lines
 -- ------------------------------------------------------------
-CREATE TABLE purchase_order_lines (
+CREATE TABLE IF NOT EXISTS purchase_order_lines (
     id INT AUTO_INCREMENT PRIMARY KEY,
     po_id INT NOT NULL,
     item_id INT NOT NULL,
@@ -208,7 +208,7 @@ CREATE TABLE purchase_order_lines (
 -- ------------------------------------------------------------
 -- PO Revision History
 -- ------------------------------------------------------------
-CREATE TABLE po_revision_history (
+CREATE TABLE IF NOT EXISTS po_revision_history (
     id INT AUTO_INCREMENT PRIMARY KEY,
     po_id INT NOT NULL,
     revision_number INT NOT NULL,
@@ -222,7 +222,7 @@ CREATE TABLE po_revision_history (
 -- ------------------------------------------------------------
 -- PO Receipts
 -- ------------------------------------------------------------
-CREATE TABLE po_receipts (
+CREATE TABLE IF NOT EXISTS po_receipts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     po_id INT NOT NULL,
     facility_id INT NOT NULL,
@@ -239,7 +239,7 @@ CREATE TABLE po_receipts (
 -- ------------------------------------------------------------
 -- PO Receipt Lines
 -- ------------------------------------------------------------
-CREATE TABLE po_receipt_lines (
+CREATE TABLE IF NOT EXISTS po_receipt_lines (
     id INT AUTO_INCREMENT PRIMARY KEY,
     receipt_id INT NOT NULL,
     po_line_id INT NOT NULL,
@@ -258,7 +258,7 @@ CREATE TABLE po_receipt_lines (
 -- ------------------------------------------------------------
 -- PO Receipt Lots
 -- ------------------------------------------------------------
-CREATE TABLE po_receipt_lots (
+CREATE TABLE IF NOT EXISTS po_receipt_lots (
     id INT AUTO_INCREMENT PRIMARY KEY,
     receipt_line_id INT NOT NULL,
     supplier_lot_number VARCHAR(100) NOT NULL,
@@ -273,7 +273,7 @@ CREATE TABLE po_receipt_lots (
 -- ------------------------------------------------------------
 -- Landed Costs
 -- ------------------------------------------------------------
-CREATE TABLE landed_costs (
+CREATE TABLE IF NOT EXISTS landed_costs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     receipt_id INT NOT NULL,
     cost_type VARCHAR(100) NOT NULL,
@@ -288,7 +288,7 @@ CREATE TABLE landed_costs (
 -- ------------------------------------------------------------
 -- Landed Cost Allocations
 -- ------------------------------------------------------------
-CREATE TABLE landed_cost_allocations (
+CREATE TABLE IF NOT EXISTS landed_cost_allocations (
     id INT AUTO_INCREMENT PRIMARY KEY,
     landed_cost_id INT NOT NULL,
     po_receipt_line_id INT NOT NULL,
@@ -302,4 +302,4 @@ CREATE TABLE landed_cost_allocations (
 -- ------------------------------------------------------------
 -- Record this migration
 -- ------------------------------------------------------------
-INSERT INTO schema_migrations (migration_name) VALUES ('0003_inventory_purchasing');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0003_inventory_purchasing');

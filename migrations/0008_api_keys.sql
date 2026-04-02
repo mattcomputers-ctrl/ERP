@@ -22,4 +22,4 @@ CREATE TABLE IF NOT EXISTS api_keys (
 -- ------------------------------------------------------------
 -- Record this migration
 -- ------------------------------------------------------------
-INSERT INTO schema_migrations (migration_name) VALUES ('0008_api_keys');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0008_api_keys');

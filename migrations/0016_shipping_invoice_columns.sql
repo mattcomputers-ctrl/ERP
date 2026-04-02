@@ -7,4 +7,4 @@ INSERT IGNORE INTO document_numbering_sequences (sequence_key, prefix, next_numb
 ('SHIPMENT', 'SHP', 1),
 ('INVOICE', 'INV', 1);
 
-INSERT INTO schema_migrations (migration_name) VALUES ('0016_shipping_invoice_columns');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0016_shipping_invoice_columns');

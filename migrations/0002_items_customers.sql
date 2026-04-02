@@ -8,7 +8,7 @@ SET CHARACTER SET utf8mb4;
 -- ------------------------------------------------------------
 -- Item Prototypes
 -- ------------------------------------------------------------
-CREATE TABLE item_prototypes (
+CREATE TABLE IF NOT EXISTS item_prototypes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     description TEXT,
@@ -26,7 +26,7 @@ CREATE TABLE item_prototypes (
 -- ------------------------------------------------------------
 -- Item Prototype Pack Extensions
 -- ------------------------------------------------------------
-CREATE TABLE item_prototype_pack_extensions (
+CREATE TABLE IF NOT EXISTS item_prototype_pack_extensions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     prototype_id INT NOT NULL,
     name VARCHAR(100) NOT NULL,
@@ -40,7 +40,7 @@ CREATE TABLE item_prototype_pack_extensions (
 -- ------------------------------------------------------------
 -- Items
 -- ------------------------------------------------------------
-CREATE TABLE items (
+CREATE TABLE IF NOT EXISTS items (
     id INT AUTO_INCREMENT PRIMARY KEY,
     item_code VARCHAR(50) NOT NULL UNIQUE,
     description VARCHAR(255) NOT NULL,
@@ -66,7 +66,7 @@ CREATE TABLE items (
 -- ------------------------------------------------------------
 -- Item Pack Extensions
 -- ------------------------------------------------------------
-CREATE TABLE item_pack_extensions (
+CREATE TABLE IF NOT EXISTS item_pack_extensions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     item_id INT NOT NULL,
     name VARCHAR(100) NOT NULL,
@@ -81,7 +81,7 @@ CREATE TABLE item_pack_extensions (
 -- ------------------------------------------------------------
 -- Item Aliases
 -- ------------------------------------------------------------
-CREATE TABLE item_aliases (
+CREATE TABLE IF NOT EXISTS item_aliases (
     id INT AUTO_INCREMENT PRIMARY KEY,
     item_id INT NOT NULL,
     customer_id INT NULL,
@@ -96,7 +96,7 @@ CREATE TABLE item_aliases (
 -- ------------------------------------------------------------
 -- Item Substitutions
 -- ------------------------------------------------------------
-CREATE TABLE item_substitutions (
+CREATE TABLE IF NOT EXISTS item_substitutions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     item_id INT NOT NULL,
     substitute_item_id INT NOT NULL,
@@ -112,7 +112,7 @@ CREATE TABLE item_substitutions (
 -- ------------------------------------------------------------
 -- Item Facility Locations
 -- ------------------------------------------------------------
-CREATE TABLE item_facility_locations (
+CREATE TABLE IF NOT EXISTS item_facility_locations (
     id INT AUTO_INCREMENT PRIMARY KEY,
     item_id INT NOT NULL,
     facility_id INT NOT NULL,
@@ -127,7 +127,7 @@ CREATE TABLE item_facility_locations (
 -- ------------------------------------------------------------
 -- Recipe Versions
 -- ------------------------------------------------------------
-CREATE TABLE recipe_versions (
+CREATE TABLE IF NOT EXISTS recipe_versions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     item_id INT NOT NULL,
     version_number INT NOT NULL,
@@ -148,7 +148,7 @@ CREATE TABLE recipe_versions (
 -- ------------------------------------------------------------
 -- Recipe Steps
 -- ------------------------------------------------------------
-CREATE TABLE recipe_steps (
+CREATE TABLE IF NOT EXISTS recipe_steps (
     id INT AUTO_INCREMENT PRIMARY KEY,
     recipe_version_id INT NOT NULL,
     step_type ENUM('INGREDIENT','INSTRUCTION') NOT NULL,
@@ -167,7 +167,7 @@ CREATE TABLE recipe_steps (
 -- ------------------------------------------------------------
 -- Suppliers
 -- ------------------------------------------------------------
-CREATE TABLE suppliers (
+CREATE TABLE IF NOT EXISTS suppliers (
     id INT AUTO_INCREMENT PRIMARY KEY,
     supplier_code VARCHAR(50) NOT NULL UNIQUE,
     company_name VARCHAR(150) NOT NULL,
@@ -190,7 +190,7 @@ CREATE TABLE suppliers (
 -- ------------------------------------------------------------
 -- Supplier Contacts
 -- ------------------------------------------------------------
-CREATE TABLE supplier_contacts (
+CREATE TABLE IF NOT EXISTS supplier_contacts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     supplier_id INT NOT NULL,
     first_name VARCHAR(100) NOT NULL,
@@ -209,7 +209,7 @@ CREATE TABLE supplier_contacts (
 -- ------------------------------------------------------------
 -- Approved Vendor List
 -- ------------------------------------------------------------
-CREATE TABLE approved_vendor_list (
+CREATE TABLE IF NOT EXISTS approved_vendor_list (
     id INT AUTO_INCREMENT PRIMARY KEY,
     item_id INT NOT NULL,
     supplier_id INT NOT NULL,
@@ -227,7 +227,7 @@ CREATE TABLE approved_vendor_list (
 -- ------------------------------------------------------------
 -- Customers
 -- ------------------------------------------------------------
-CREATE TABLE customers (
+CREATE TABLE IF NOT EXISTS customers (
     id INT AUTO_INCREMENT PRIMARY KEY,
     customer_code VARCHAR(50) NOT NULL UNIQUE,
     company_name VARCHAR(150) NOT NULL,
@@ -261,7 +261,7 @@ CREATE TABLE customers (
 -- ------------------------------------------------------------
 -- Customer Contacts
 -- ------------------------------------------------------------
-CREATE TABLE customer_contacts (
+CREATE TABLE IF NOT EXISTS customer_contacts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     customer_id INT NOT NULL,
     first_name VARCHAR(100) NOT NULL,
@@ -280,7 +280,7 @@ CREATE TABLE customer_contacts (
 -- ------------------------------------------------------------
 -- Customer CRM Profiles
 -- ------------------------------------------------------------
-CREATE TABLE customer_crm_profiles (
+CREATE TABLE IF NOT EXISTS customer_crm_profiles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     customer_id INT NOT NULL UNIQUE,
     equipment_on_site TEXT NULL,
@@ -301,7 +301,7 @@ CREATE TABLE customer_crm_profiles (
 -- ------------------------------------------------------------
 -- Customer Activities
 -- ------------------------------------------------------------
-CREATE TABLE customer_activities (
+CREATE TABLE IF NOT EXISTS customer_activities (
     id INT AUTO_INCREMENT PRIMARY KEY,
     customer_id INT NOT NULL,
     activity_type ENUM('CALL','EMAIL','MEETING','SITE_VISIT','DEMO','COMPLAINT','PRICING_DISCUSSION','PROPOSAL_SENT','GENERAL') NOT NULL,
@@ -318,7 +318,7 @@ CREATE TABLE customer_activities (
 -- ------------------------------------------------------------
 -- Customer Activity Contacts
 -- ------------------------------------------------------------
-CREATE TABLE customer_activity_contacts (
+CREATE TABLE IF NOT EXISTS customer_activity_contacts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     activity_id INT NOT NULL,
     contact_id INT NOT NULL,
@@ -329,7 +329,7 @@ CREATE TABLE customer_activity_contacts (
 -- ------------------------------------------------------------
 -- CRM Tasks
 -- ------------------------------------------------------------
-CREATE TABLE crm_tasks (
+CREATE TABLE IF NOT EXISTS crm_tasks (
     id INT AUTO_INCREMENT PRIMARY KEY,
     customer_id INT NOT NULL,
     contact_id INT NULL,
@@ -352,7 +352,7 @@ CREATE TABLE crm_tasks (
 -- ------------------------------------------------------------
 -- Ship To Locations
 -- ------------------------------------------------------------
-CREATE TABLE ship_to_locations (
+CREATE TABLE IF NOT EXISTS ship_to_locations (
     id INT AUTO_INCREMENT PRIMARY KEY,
     customer_id INT NOT NULL,
     location_name VARCHAR(150) NOT NULL,
@@ -381,7 +381,7 @@ CREATE TABLE ship_to_locations (
 -- ------------------------------------------------------------
 -- Customer Prices
 -- ------------------------------------------------------------
-CREATE TABLE customer_prices (
+CREATE TABLE IF NOT EXISTS customer_prices (
     id INT AUTO_INCREMENT PRIMARY KEY,
     customer_id INT NULL,
     item_id INT NOT NULL,
@@ -397,7 +397,7 @@ CREATE TABLE customer_prices (
 -- ------------------------------------------------------------
 -- Customer MOQ
 -- ------------------------------------------------------------
-CREATE TABLE customer_moq (
+CREATE TABLE IF NOT EXISTS customer_moq (
     id INT AUTO_INCREMENT PRIMARY KEY,
     customer_id INT NOT NULL,
     item_id INT NOT NULL,
@@ -413,4 +413,4 @@ CREATE TABLE customer_moq (
 -- ------------------------------------------------------------
 -- Record this migration
 -- ------------------------------------------------------------
-INSERT INTO schema_migrations (migration_name) VALUES ('0002_items_customers');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0002_items_customers');

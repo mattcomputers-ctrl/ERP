@@ -8,7 +8,7 @@ SET CHARACTER SET utf8mb4;
 -- ------------------------------------------------------------
 -- Schema Migrations (mark 0001–0005 as applied)
 -- ------------------------------------------------------------
-INSERT INTO schema_migrations (migration_name) VALUES
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES
 ('0001_foundation'),
 ('0002_items_customers'),
 ('0003_inventory_purchasing'),
@@ -18,19 +18,19 @@ INSERT INTO schema_migrations (migration_name) VALUES
 -- ------------------------------------------------------------
 -- Facilities
 -- ------------------------------------------------------------
-INSERT INTO facilities (id, code, name, facility_type, is_default, active) VALUES
+INSERT IGNORE INTO facilities (id, code, name, facility_type, is_default, active) VALUES
 (1, 'DEFAULT', 'Main Facility', 'MANUFACTURING', 1, 1);
 
 -- ------------------------------------------------------------
 -- Groups
 -- ------------------------------------------------------------
-INSERT INTO `groups` (id, name, is_system_admin, active) VALUES
+INSERT IGNORE INTO `groups` (id, name, is_system_admin, active) VALUES
 (1, 'System Administrator', 1, 1);
 
 -- ------------------------------------------------------------
 -- Units of Measure
 -- ------------------------------------------------------------
-INSERT INTO uom (abbreviation, name, active) VALUES
+INSERT IGNORE INTO uom (abbreviation, name, active) VALUES
 ('lb', 'Pound', 1),
 ('kg', 'Kilogram', 1),
 ('oz', 'Ounce', 1),
@@ -47,7 +47,7 @@ INSERT INTO uom (abbreviation, name, active) VALUES
 -- ------------------------------------------------------------
 -- Ship Via
 -- ------------------------------------------------------------
-INSERT INTO ship_via (name, transit_days, active) VALUES
+INSERT IGNORE INTO ship_via (name, transit_days, active) VALUES
 ('UPS Ground', 3, 1),
 ('UPS 2-Day Air', 2, 1),
 ('UPS Next Day Air', 1, 1),
@@ -61,7 +61,7 @@ INSERT INTO ship_via (name, transit_days, active) VALUES
 -- ------------------------------------------------------------
 -- Payment Terms
 -- ------------------------------------------------------------
-INSERT INTO payment_terms (name, net_days, active) VALUES
+INSERT IGNORE INTO payment_terms (name, net_days, active) VALUES
 ('Net 30', 30, 1),
 ('Net 60', 60, 1),
 ('Net 90', 90, 1),
@@ -72,7 +72,7 @@ INSERT INTO payment_terms (name, net_days, active) VALUES
 -- ------------------------------------------------------------
 -- Reason Codes
 -- ------------------------------------------------------------
-INSERT INTO reason_codes (name, active) VALUES
+INSERT IGNORE INTO reason_codes (name, active) VALUES
 ('Cycle Count Correction', 1),
 ('Damaged', 1),
 ('Waste/Scrap', 1),
@@ -83,7 +83,7 @@ INSERT INTO reason_codes (name, active) VALUES
 -- ------------------------------------------------------------
 -- Document Numbering Sequences
 -- ------------------------------------------------------------
-INSERT INTO document_numbering_sequences (sequence_key, prefix, next_number) VALUES
+INSERT IGNORE INTO document_numbering_sequences (sequence_key, prefix, next_number) VALUES
 ('PURCHASE_ORDER', 'PO', 1),
 ('SALES_ORDER', 'SO', 1),
 ('REPACK_TICKET', 'RPK', 1),
@@ -98,7 +98,7 @@ INSERT INTO document_numbering_sequences (sequence_key, prefix, next_number) VAL
 -- ------------------------------------------------------------
 -- System Settings
 -- ------------------------------------------------------------
-INSERT INTO system_settings (setting_key, setting_value) VALUES
+INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES
 ('default_lead_time_days', '3'),
 ('quote_expiration_days', '30'),
 ('receiving_discrepancy_threshold', '5'),

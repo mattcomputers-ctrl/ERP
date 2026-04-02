@@ -8,4 +8,4 @@ CREATE TABLE IF NOT EXISTS daily_batch_counter (
     counter INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO schema_migrations (migration_name) VALUES ('0015_batch_columns');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0015_batch_columns');

@@ -10,4 +10,4 @@ CREATE TABLE IF NOT EXISTS production_calendar (
     FOREIGN KEY (facility_id) REFERENCES facilities(id) ON UPDATE CASCADE ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO schema_migrations (migration_name) VALUES ('0018_production_calendar');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0018_production_calendar');

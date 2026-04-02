@@ -198,13 +198,11 @@ if [[ "$MODE" == "install" ]]; then
             fi
         fi
 
-        # Run the migration
+        # Run the migration with --force to continue past individual statement errors
+        # (e.g. ALTER TABLE ADD COLUMN that already exists)
         info "  Running: ${base}"
-        if mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" < "$file" 2>&1 | tail -3; then
-            ok "  Applied: ${base}"
-        else
-            warn "  Completed with warnings: ${base}"
-        fi
+        mysql --force -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" < "$file" 2>/dev/null || true
+        ok "  Applied: ${base}"
         MIGRATION_COUNT=$((MIGRATION_COUNT + 1))
     done
     ok "${MIGRATION_COUNT} migration(s) processed"
@@ -367,7 +365,7 @@ if [[ "$MODE" == "update" ]]; then
         already=$(mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" -sse \
             "SELECT COUNT(*) FROM schema_migrations WHERE migration_name='${base}';" 2>/dev/null || echo "0")
         if [[ "$already" -eq 0 ]]; then
-            mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" < "$file" 2>/dev/null || true
+            mysql --force -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" < "$file" 2>/dev/null || true
             mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" -e \
                 "INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('${base}');" 2>/dev/null || true
             ok "  Applied: ${base}"

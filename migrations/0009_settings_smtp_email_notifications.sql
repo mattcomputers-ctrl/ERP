@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS scheduled_reports (
 -- ------------------------------------------------------------
 -- Seed: Default Email Templates
 -- ------------------------------------------------------------
-INSERT INTO email_templates (template_type, subject, body, active) VALUES
+INSERT IGNORE INTO email_templates (template_type, subject, body, active) VALUES
 ('invoice', 'Invoice {invoice_number} from Precision Ink', '<p>Dear {customer_name},</p><p>Please find attached invoice <strong>{invoice_number}</strong> for order {order_number}.</p><p>Amount due: <strong>{amount_due}</strong><br>Due date: {due_date}</p><p>Thank you for your business.</p><p>Best regards,<br>{rep_name}</p>', 1),
 ('order_acknowledgment', 'Order Acknowledgment — {order_number}', '<p>Dear {customer_name},</p><p>Thank you for your order <strong>{order_number}</strong>.</p><p>Promised ship date: <strong>{promised_ship_date}</strong></p><p>We will notify you when your order ships.</p><p>Best regards,<br>{rep_name}</p>', 1),
 ('quote', 'Quote {quote_number} from Precision Ink', '<p>Dear {customer_name},</p><p>Please find attached quote <strong>{quote_number}</strong>.</p><p>This quote is valid until <strong>{expiration_date}</strong>.</p><p>Please do not hesitate to reach out with any questions.</p><p>Best regards,<br>{rep_name}</p>', 1),
@@ -64,7 +64,7 @@ INSERT INTO email_templates (template_type, subject, body, active) VALUES
 -- ------------------------------------------------------------
 -- Seed: Notification Alert Types
 -- ------------------------------------------------------------
-INSERT INTO notifications_config (alert_type, enabled, recipients, threshold_value, threshold_unit) VALUES
+INSERT IGNORE INTO notifications_config (alert_type, enabled, recipients, threshold_value, threshold_unit) VALUES
 ('low_stock', 1, NULL, NULL, NULL),
 ('batch_overdue', 1, NULL, NULL, NULL),
 ('credit_limit_warning', 1, NULL, NULL, NULL),
@@ -79,4 +79,4 @@ INSERT INTO notifications_config (alert_type, enabled, recipients, threshold_val
 -- ------------------------------------------------------------
 -- Mark migration as applied
 -- ------------------------------------------------------------
-INSERT INTO schema_migrations (migration_name) VALUES ('0009_settings_smtp_email_notifications');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0009_settings_smtp_email_notifications');

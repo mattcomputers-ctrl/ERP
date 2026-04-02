@@ -8,7 +8,7 @@ SET CHARACTER SET utf8mb4;
 -- ------------------------------------------------------------
 -- Sessions (for user activity tracking)
 -- ------------------------------------------------------------
-CREATE TABLE sessions (
+CREATE TABLE IF NOT EXISTS sessions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     session_id VARCHAR(255) NOT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE sessions (
 -- ------------------------------------------------------------
 -- Customer Pricing
 -- ------------------------------------------------------------
-CREATE TABLE customer_pricing (
+CREATE TABLE IF NOT EXISTS customer_pricing (
     id INT AUTO_INCREMENT PRIMARY KEY,
     customer_id INT NOT NULL,
     item_id INT NOT NULL,
@@ -39,4 +39,4 @@ CREATE TABLE customer_pricing (
 -- ------------------------------------------------------------
 -- Record this migration
 -- ------------------------------------------------------------
-INSERT INTO schema_migrations (migration_name) VALUES ('0010_settings_logs_import_export');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0010_settings_logs_import_export');

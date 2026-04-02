@@ -22,4 +22,4 @@ INSERT IGNORE INTO facilities (id, code, name, facility_type, is_default, active
 VALUES (1, 'DEFAULT', 'Main Facility', 'MANUFACTURING', 1, 1);
 
 -- Record this migration
-INSERT INTO schema_migrations (migration_name) VALUES ('0013_transfer_orders_columns');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0013_transfer_orders_columns');

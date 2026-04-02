@@ -8,7 +8,7 @@ SET CHARACTER SET utf8mb4;
 -- ------------------------------------------------------------
 -- QC Specifications
 -- ------------------------------------------------------------
-CREATE TABLE qc_specs (
+CREATE TABLE IF NOT EXISTS qc_specs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     item_id INT NOT NULL,
     version_number INT NOT NULL DEFAULT 1,
@@ -22,7 +22,7 @@ CREATE TABLE qc_specs (
 -- ------------------------------------------------------------
 -- QC Spec Tests
 -- ------------------------------------------------------------
-CREATE TABLE qc_spec_tests (
+CREATE TABLE IF NOT EXISTS qc_spec_tests (
     id INT AUTO_INCREMENT PRIMARY KEY,
     spec_id INT NOT NULL,
     test_name VARCHAR(150) NOT NULL,
@@ -40,7 +40,7 @@ CREATE TABLE qc_spec_tests (
 -- ------------------------------------------------------------
 -- QC Results
 -- ------------------------------------------------------------
-CREATE TABLE qc_results (
+CREATE TABLE IF NOT EXISTS qc_results (
     id INT AUTO_INCREMENT PRIMARY KEY,
     batch_id INT NOT NULL,
     spec_id INT NOT NULL,
@@ -59,7 +59,7 @@ CREATE TABLE qc_results (
 -- ------------------------------------------------------------
 -- QC Incoming Inspections
 -- ------------------------------------------------------------
-CREATE TABLE qc_incoming_inspections (
+CREATE TABLE IF NOT EXISTS qc_incoming_inspections (
     id INT AUTO_INCREMENT PRIMARY KEY,
     fifo_lot_id INT NOT NULL,
     po_receipt_line_id INT NULL,
@@ -75,7 +75,7 @@ CREATE TABLE qc_incoming_inspections (
 -- ------------------------------------------------------------
 -- Supplier Corrective Action Requests (SCARs)
 -- ------------------------------------------------------------
-CREATE TABLE scars (
+CREATE TABLE IF NOT EXISTS scars (
     id INT AUTO_INCREMENT PRIMARY KEY,
     scar_number VARCHAR(30) NOT NULL UNIQUE,
     supplier_id INT NOT NULL,
@@ -98,7 +98,7 @@ CREATE TABLE scars (
 -- ------------------------------------------------------------
 -- Equipment Maintenance Log
 -- ------------------------------------------------------------
-CREATE TABLE equipment_maintenance_log (
+CREATE TABLE IF NOT EXISTS equipment_maintenance_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     equipment_id INT NOT NULL,
     maintenance_date DATE NOT NULL,
@@ -116,7 +116,7 @@ CREATE TABLE equipment_maintenance_log (
 -- ------------------------------------------------------------
 -- Transfer Orders
 -- ------------------------------------------------------------
-CREATE TABLE transfer_orders (
+CREATE TABLE IF NOT EXISTS transfer_orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     trf_number VARCHAR(30) NOT NULL UNIQUE,
     from_facility_id INT NOT NULL,
@@ -133,7 +133,7 @@ CREATE TABLE transfer_orders (
 -- ------------------------------------------------------------
 -- Transfer Order Lines
 -- ------------------------------------------------------------
-CREATE TABLE transfer_order_lines (
+CREATE TABLE IF NOT EXISTS transfer_order_lines (
     id INT AUTO_INCREMENT PRIMARY KEY,
     transfer_id INT NOT NULL,
     item_id INT NOT NULL,
@@ -151,7 +151,7 @@ CREATE TABLE transfer_order_lines (
 -- ------------------------------------------------------------
 -- Transfer Line Lots
 -- ------------------------------------------------------------
-CREATE TABLE transfer_line_lots (
+CREATE TABLE IF NOT EXISTS transfer_line_lots (
     id INT AUTO_INCREMENT PRIMARY KEY,
     transfer_line_id INT NOT NULL,
     lot_number VARCHAR(100) NOT NULL,
@@ -166,7 +166,7 @@ CREATE TABLE transfer_line_lots (
 -- ------------------------------------------------------------
 -- RMA Orders
 -- ------------------------------------------------------------
-CREATE TABLE rma_orders (
+CREATE TABLE IF NOT EXISTS rma_orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     rma_number VARCHAR(30) NOT NULL UNIQUE,
     customer_id INT NOT NULL,
@@ -185,7 +185,7 @@ CREATE TABLE rma_orders (
 -- ------------------------------------------------------------
 -- RMA Lines
 -- ------------------------------------------------------------
-CREATE TABLE rma_lines (
+CREATE TABLE IF NOT EXISTS rma_lines (
     id INT AUTO_INCREMENT PRIMARY KEY,
     rma_id INT NOT NULL,
     item_id INT NOT NULL,
@@ -205,7 +205,7 @@ CREATE TABLE rma_lines (
 -- ------------------------------------------------------------
 -- Consignment Placements
 -- ------------------------------------------------------------
-CREATE TABLE consignment_placements (
+CREATE TABLE IF NOT EXISTS consignment_placements (
     id INT AUTO_INCREMENT PRIMARY KEY,
     con_number VARCHAR(30) NOT NULL UNIQUE,
     customer_id INT NOT NULL,
@@ -225,7 +225,7 @@ CREATE TABLE consignment_placements (
 -- ------------------------------------------------------------
 -- Consignment Consumption
 -- ------------------------------------------------------------
-CREATE TABLE consignment_consumption (
+CREATE TABLE IF NOT EXISTS consignment_consumption (
     id INT AUTO_INCREMENT PRIMARY KEY,
     placement_id INT NOT NULL,
     consumption_date DATE NOT NULL,
@@ -242,7 +242,7 @@ CREATE TABLE consignment_consumption (
 -- ------------------------------------------------------------
 -- Repack Tickets
 -- ------------------------------------------------------------
-CREATE TABLE repack_tickets (
+CREATE TABLE IF NOT EXISTS repack_tickets (
     id INT AUTO_INCREMENT PRIMARY KEY,
     rpk_number VARCHAR(30) NOT NULL UNIQUE,
     facility_id INT NOT NULL,

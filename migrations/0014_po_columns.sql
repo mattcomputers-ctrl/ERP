@@ -3,4 +3,4 @@
 ALTER TABLE purchase_orders ADD COLUMN created_by INT NULL AFTER requisition_id;
 ALTER TABLE landed_costs ADD COLUMN posted TINYINT(1) NOT NULL DEFAULT 0 AFTER notes;
 
-INSERT INTO schema_migrations (migration_name) VALUES ('0014_po_columns');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0014_po_columns');

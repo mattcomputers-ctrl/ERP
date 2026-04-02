@@ -12,4 +12,4 @@ CREATE TABLE IF NOT EXISTS api_request_log (
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO schema_migrations (migration_name) VALUES ('0019_api_request_log');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0019_api_request_log');

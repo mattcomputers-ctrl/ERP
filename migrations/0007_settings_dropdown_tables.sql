@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS landed_cost_types (
 -- ------------------------------------------------------------
 -- Seed: Lost Quote Reasons
 -- ------------------------------------------------------------
-INSERT INTO lost_quote_reasons (name, active) VALUES
+INSERT IGNORE INTO lost_quote_reasons (name, active) VALUES
 ('Price', 1),
 ('Competition', 1),
 ('Timing', 1),
@@ -51,7 +51,7 @@ INSERT INTO lost_quote_reasons (name, active) VALUES
 -- ------------------------------------------------------------
 -- Seed: Landed Cost Types
 -- ------------------------------------------------------------
-INSERT INTO landed_cost_types (name, active) VALUES
+INSERT IGNORE INTO landed_cost_types (name, active) VALUES
 ('Freight', 1),
 ('Duty', 1),
 ('Brokerage', 1),
@@ -60,7 +60,7 @@ INSERT INTO landed_cost_types (name, active) VALUES
 -- ------------------------------------------------------------
 -- Seed: session_warning_minutes (missing from 0006)
 -- ------------------------------------------------------------
-INSERT INTO system_settings (setting_key, setting_value)
+INSERT IGNORE INTO system_settings (setting_key, setting_value)
 SELECT 'session_warning_minutes', '5'
 FROM DUAL WHERE NOT EXISTS (
     SELECT 1 FROM system_settings WHERE setting_key = 'session_warning_minutes'
@@ -69,4 +69,4 @@ FROM DUAL WHERE NOT EXISTS (
 -- ------------------------------------------------------------
 -- Record this migration
 -- ------------------------------------------------------------
-INSERT INTO schema_migrations (migration_name) VALUES ('0007_settings_dropdown_tables');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0007_settings_dropdown_tables');

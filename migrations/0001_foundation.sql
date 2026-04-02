@@ -8,7 +8,7 @@ SET CHARACTER SET utf8mb4;
 -- ------------------------------------------------------------
 -- Schema Migrations Tracking
 -- ------------------------------------------------------------
-CREATE TABLE schema_migrations (
+CREATE TABLE IF NOT EXISTS schema_migrations (
     id INT AUTO_INCREMENT PRIMARY KEY,
     migration_name VARCHAR(255) NOT NULL UNIQUE,
     applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -17,7 +17,7 @@ CREATE TABLE schema_migrations (
 -- ------------------------------------------------------------
 -- Facilities
 -- ------------------------------------------------------------
-CREATE TABLE facilities (
+CREATE TABLE IF NOT EXISTS facilities (
     id INT AUTO_INCREMENT PRIMARY KEY,
     code VARCHAR(20) NOT NULL UNIQUE,
     name VARCHAR(100) NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE facilities (
 -- ------------------------------------------------------------
 -- Ship Via
 -- ------------------------------------------------------------
-CREATE TABLE ship_via (
+CREATE TABLE IF NOT EXISTS ship_via (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     transit_days INT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE ship_via (
 -- ------------------------------------------------------------
 -- Payment Terms
 -- ------------------------------------------------------------
-CREATE TABLE payment_terms (
+CREATE TABLE IF NOT EXISTS payment_terms (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     net_days INT NOT NULL DEFAULT 0,
@@ -61,7 +61,7 @@ CREATE TABLE payment_terms (
 -- ------------------------------------------------------------
 -- Units of Measure
 -- ------------------------------------------------------------
-CREATE TABLE uom (
+CREATE TABLE IF NOT EXISTS uom (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
     abbreviation VARCHAR(20) NOT NULL,
@@ -73,7 +73,7 @@ CREATE TABLE uom (
 -- ------------------------------------------------------------
 -- Reason Codes
 -- ------------------------------------------------------------
-CREATE TABLE reason_codes (
+CREATE TABLE IF NOT EXISTS reason_codes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     active TINYINT(1) NOT NULL DEFAULT 1,
@@ -84,7 +84,7 @@ CREATE TABLE reason_codes (
 -- ------------------------------------------------------------
 -- Surcharge Types
 -- ------------------------------------------------------------
-CREATE TABLE surcharge_types (
+CREATE TABLE IF NOT EXISTS surcharge_types (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     calculation_type ENUM('FIXED','PERCENTAGE') NOT NULL,
@@ -96,7 +96,7 @@ CREATE TABLE surcharge_types (
 -- ------------------------------------------------------------
 -- Industry Segments
 -- ------------------------------------------------------------
-CREATE TABLE industry_segments (
+CREATE TABLE IF NOT EXISTS industry_segments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     active TINYINT(1) NOT NULL DEFAULT 1,
@@ -107,7 +107,7 @@ CREATE TABLE industry_segments (
 -- ------------------------------------------------------------
 -- Equipment
 -- ------------------------------------------------------------
-CREATE TABLE equipment (
+CREATE TABLE IF NOT EXISTS equipment (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     equipment_type VARCHAR(100) NOT NULL,
@@ -123,7 +123,7 @@ CREATE TABLE equipment (
 -- ------------------------------------------------------------
 -- Document Numbering Sequences
 -- ------------------------------------------------------------
-CREATE TABLE document_numbering_sequences (
+CREATE TABLE IF NOT EXISTS document_numbering_sequences (
     id INT AUTO_INCREMENT PRIMARY KEY,
     sequence_key VARCHAR(50) NOT NULL UNIQUE,
     prefix VARCHAR(20) NOT NULL,
@@ -135,7 +135,7 @@ CREATE TABLE document_numbering_sequences (
 -- ------------------------------------------------------------
 -- Groups
 -- ------------------------------------------------------------
-CREATE TABLE `groups` (
+CREATE TABLE IF NOT EXISTS `groups` (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     description TEXT,
@@ -148,7 +148,7 @@ CREATE TABLE `groups` (
 -- ------------------------------------------------------------
 -- Users
 -- ------------------------------------------------------------
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(100) NOT NULL UNIQUE,
     full_name VARCHAR(150) NOT NULL,
@@ -171,7 +171,7 @@ CREATE TABLE users (
 -- ------------------------------------------------------------
 -- User Facility Restrictions
 -- ------------------------------------------------------------
-CREATE TABLE user_facility_restrictions (
+CREATE TABLE IF NOT EXISTS user_facility_restrictions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     facility_id INT NOT NULL,
@@ -184,7 +184,7 @@ CREATE TABLE user_facility_restrictions (
 -- ------------------------------------------------------------
 -- User Password History
 -- ------------------------------------------------------------
-CREATE TABLE user_password_history (
+CREATE TABLE IF NOT EXISTS user_password_history (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
@@ -195,7 +195,7 @@ CREATE TABLE user_password_history (
 -- ------------------------------------------------------------
 -- Login Attempts
 -- ------------------------------------------------------------
-CREATE TABLE login_attempts (
+CREATE TABLE IF NOT EXISTS login_attempts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(100) NOT NULL,
     ip_address VARCHAR(45) NOT NULL,
@@ -206,7 +206,7 @@ CREATE TABLE login_attempts (
 -- ------------------------------------------------------------
 -- Group Permissions
 -- ------------------------------------------------------------
-CREATE TABLE group_permissions (
+CREATE TABLE IF NOT EXISTS group_permissions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     group_id INT NOT NULL,
     module VARCHAR(100) NOT NULL,
@@ -222,7 +222,7 @@ CREATE TABLE group_permissions (
 -- ------------------------------------------------------------
 -- Group Special Permissions
 -- ------------------------------------------------------------
-CREATE TABLE group_special_permissions (
+CREATE TABLE IF NOT EXISTS group_special_permissions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     group_id INT NOT NULL,
     permission_key VARCHAR(100) NOT NULL,
@@ -234,7 +234,7 @@ CREATE TABLE group_special_permissions (
 -- ------------------------------------------------------------
 -- System Settings
 -- ------------------------------------------------------------
-CREATE TABLE system_settings (
+CREATE TABLE IF NOT EXISTS system_settings (
     id INT AUTO_INCREMENT PRIMARY KEY,
     setting_key VARCHAR(100) NOT NULL UNIQUE,
     setting_value TEXT,
@@ -244,7 +244,7 @@ CREATE TABLE system_settings (
 -- ------------------------------------------------------------
 -- Email Templates
 -- ------------------------------------------------------------
-CREATE TABLE email_templates (
+CREATE TABLE IF NOT EXISTS email_templates (
     id INT AUTO_INCREMENT PRIMARY KEY,
     template_type VARCHAR(100) NOT NULL,
     subject VARCHAR(255) NOT NULL,
@@ -257,7 +257,7 @@ CREATE TABLE email_templates (
 -- ------------------------------------------------------------
 -- Announcements
 -- ------------------------------------------------------------
-CREATE TABLE announcements (
+CREATE TABLE IF NOT EXISTS announcements (
     id INT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
@@ -275,7 +275,7 @@ CREATE TABLE announcements (
 -- ------------------------------------------------------------
 -- Announcement Dismissals
 -- ------------------------------------------------------------
-CREATE TABLE announcement_dismissals (
+CREATE TABLE IF NOT EXISTS announcement_dismissals (
     id INT AUTO_INCREMENT PRIMARY KEY,
     announcement_id INT NOT NULL,
     user_id INT NOT NULL,
@@ -287,7 +287,7 @@ CREATE TABLE announcement_dismissals (
 -- ------------------------------------------------------------
 -- Custom Field Definitions
 -- ------------------------------------------------------------
-CREATE TABLE custom_field_definitions (
+CREATE TABLE IF NOT EXISTS custom_field_definitions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     record_type VARCHAR(50) NOT NULL,
     label VARCHAR(100) NOT NULL,
@@ -304,7 +304,7 @@ CREATE TABLE custom_field_definitions (
 -- ------------------------------------------------------------
 -- Custom Field Values
 -- ------------------------------------------------------------
-CREATE TABLE custom_field_values (
+CREATE TABLE IF NOT EXISTS custom_field_values (
     id INT AUTO_INCREMENT PRIMARY KEY,
     record_type VARCHAR(50) NOT NULL,
     record_id BIGINT NOT NULL,
@@ -318,7 +318,7 @@ CREATE TABLE custom_field_values (
 -- ------------------------------------------------------------
 -- Audit Log
 -- ------------------------------------------------------------
-CREATE TABLE audit_log (
+CREATE TABLE IF NOT EXISTS audit_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NULL,
     action_type ENUM('CREATE','UPDATE','DELETE','LOGIN','LOGOUT','PERMISSION_OVERRIDE') NOT NULL,
@@ -332,7 +332,7 @@ CREATE TABLE audit_log (
 -- ------------------------------------------------------------
 -- Outbound Email Log
 -- ------------------------------------------------------------
-CREATE TABLE outbound_email_log (
+CREATE TABLE IF NOT EXISTS outbound_email_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     sent_by INT NULL,
     document_type VARCHAR(100) NOT NULL,
@@ -349,7 +349,7 @@ CREATE TABLE outbound_email_log (
 -- ------------------------------------------------------------
 -- Notification Log
 -- ------------------------------------------------------------
-CREATE TABLE notification_log (
+CREATE TABLE IF NOT EXISTS notification_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     alert_type VARCHAR(100) NOT NULL,
     recipients TEXT NOT NULL,
@@ -362,7 +362,7 @@ CREATE TABLE notification_log (
 -- ------------------------------------------------------------
 -- Scheduled Reports
 -- ------------------------------------------------------------
-CREATE TABLE scheduled_reports (
+CREATE TABLE IF NOT EXISTS scheduled_reports (
     id INT AUTO_INCREMENT PRIMARY KEY,
     report_name VARCHAR(100) NOT NULL,
     schedule_type ENUM('DAILY','WEEKLY','MONTHLY') NOT NULL,
@@ -379,7 +379,7 @@ CREATE TABLE scheduled_reports (
 -- ------------------------------------------------------------
 -- Document Templates
 -- ------------------------------------------------------------
-CREATE TABLE document_templates (
+CREATE TABLE IF NOT EXISTS document_templates (
     id INT AUTO_INCREMENT PRIMARY KEY,
     document_type VARCHAR(100) NOT NULL,
     version_number INT NOT NULL DEFAULT 1,
@@ -393,7 +393,7 @@ CREATE TABLE document_templates (
 -- ------------------------------------------------------------
 -- Attachments
 -- ------------------------------------------------------------
-CREATE TABLE attachments (
+CREATE TABLE IF NOT EXISTS attachments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     record_type VARCHAR(50) NOT NULL,
     record_id BIGINT NOT NULL,
@@ -412,4 +412,4 @@ CREATE TABLE attachments (
 -- ------------------------------------------------------------
 -- Record this migration
 -- ------------------------------------------------------------
-INSERT INTO schema_migrations (migration_name) VALUES ('0001_foundation');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0001_foundation');

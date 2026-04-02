@@ -24,4 +24,4 @@ CREATE INDEX IF NOT EXISTS idx_email_reference ON outbound_email_log (reference_
 -- ------------------------------------------------------------
 -- Record this migration
 -- ------------------------------------------------------------
-INSERT INTO schema_migrations (migration_name) VALUES ('0012_audit_email_indexes');
+INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('0012_audit_email_indexes');
