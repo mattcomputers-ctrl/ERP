@@ -176,30 +176,36 @@ if [[ "$MODE" == "install" ]]; then
     # ── Step 7: Run migrations ───────────────────────────────────────
     step "Running database migrations"
 
-    # Ensure schema_migrations table exists
-    mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e "
-        CREATE TABLE IF NOT EXISTS schema_migrations (
-            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            migration_name VARCHAR(255) NOT NULL,
-            applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB;" 2>/dev/null
+    # Do NOT pre-create schema_migrations — migration 0001 creates it.
+    # Just run each .sql file in order. The files themselves track
+    # their own application via INSERT INTO schema_migrations.
 
     MIGRATION_COUNT=0
     for file in "${APP_DIR}"/migrations/*.sql; do
         [[ -f "$file" ]] || continue
         base="$(basename "$file")"
-        already=$(mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -sse \
-            "SELECT COUNT(*) FROM schema_migrations WHERE migration_name='${base}';" 2>/dev/null || echo "0")
-        if [[ "$already" -eq 0 ]]; then
-            if mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" < "$file" 2>/dev/null; then
-                ok "  Applied: ${base}"
-            else
-                warn "  Partial: ${base} (some statements may have already run)"
+
+        # Check if schema_migrations table exists yet (created by 0001)
+        TABLE_EXISTS=$(mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -sse \
+            "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='${DB_NAME}' AND TABLE_NAME='schema_migrations';" 2>/dev/null || echo "0")
+
+        if [[ "$TABLE_EXISTS" -gt 0 ]]; then
+            # Table exists — check if this migration was already applied
+            already=$(mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -sse \
+                "SELECT COUNT(*) FROM schema_migrations WHERE migration_name LIKE '%${base%.*}%';" 2>/dev/null || echo "0")
+            if [[ "$already" -gt 0 ]]; then
+                continue  # Skip — already applied
             fi
-            mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e \
-                "INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('${base}');" 2>/dev/null || true
-            MIGRATION_COUNT=$((MIGRATION_COUNT + 1))
         fi
+
+        # Run the migration
+        info "  Running: ${base}"
+        if mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" < "$file" 2>&1 | tail -3; then
+            ok "  Applied: ${base}"
+        else
+            warn "  Completed with warnings: ${base}"
+        fi
+        MIGRATION_COUNT=$((MIGRATION_COUNT + 1))
     done
     ok "${MIGRATION_COUNT} migration(s) processed"
 
