@@ -244,7 +244,14 @@ $router->mount('/invoices', function () use ($router) {
 
 // ── Pick Lists ──────────────────────────────────────────────────────
 $router->mount('/pick-lists', function () use ($router) {
-    // TODO: warehouse pick-list generation
+    $c = 'PrecisionInk\\Controllers\\PickListController';
+    $router->get('/',                          "{$c}@index");
+    $router->get('/create',                    "{$c}@createForm");
+    $router->post('/create',                   "{$c}@store");
+    $router->get('/(\d+)',                     "{$c}@show");
+    $router->post('/(\d+)/confirm-line',       "{$c}@confirmLine");
+    $router->post('/(\d+)/complete',           "{$c}@complete");
+    $router->get('/(\d+)/print',               "{$c}@printPdf");
 });
 
 // ── Batches ─────────────────────────────────────────────────────────
