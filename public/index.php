@@ -295,7 +295,15 @@ $router->mount('/batches', function () use ($router) {
 
 // ── Repack ──────────────────────────────────────────────────────────
 $router->mount('/repack', function () use ($router) {
-    // TODO: repackaging operations
+    $c = 'PrecisionInk\\Controllers\\RepackController';
+    $router->get('/',                  "{$c}@index");
+    $router->get('/create',            "{$c}@create");
+    $router->post('/create',           "{$c}@store");
+    $router->get('/(\d+)',             "{$c}@show");
+    $router->get('/(\d+)/edit',        "{$c}@editForm");
+    $router->post('/(\d+)/edit',       "{$c}@update");
+    $router->post('/(\d+)/close',      "{$c}@close");
+    $router->post('/(\d+)/cancel',     "{$c}@cancel");
 });
 
 // ── QC ──────────────────────────────────────────────────────────────
