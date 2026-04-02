@@ -221,7 +221,22 @@ $router->mount('/pick-lists', function () use ($router) {
 
 // ── Batches ─────────────────────────────────────────────────────────
 $router->mount('/batches', function () use ($router) {
-    // TODO: production batch records
+    $c = 'PrecisionInk\\Controllers\\BatchController';
+    $router->get('/',                          "{$c}@index");
+    $router->get('/create',                    "{$c}@create");
+    $router->post('/create',                   "{$c}@store");
+    $router->get('/recipe-ingredients',        "{$c}@recipeIngredients");
+    $router->get('/template-data',             "{$c}@templateData");
+    $router->get('/(\d+)',                     "{$c}@show");
+    $router->get('/(\d+)/edit',                "{$c}@editForm");
+    $router->post('/(\d+)/edit',               "{$c}@update");
+    $router->post('/(\d+)/start',              "{$c}@start");
+    $router->post('/(\d+)/cancel',             "{$c}@cancel");
+    $router->post('/(\d+)/clone',              "{$c}@cloneBatch");
+    $router->post('/(\d+)/split',              "{$c}@split");
+    $router->post('/(\d+)/scrap',              "{$c}@logScrap");
+    $router->post('/(\d+)/save-template',      "{$c}@saveTemplate");
+    $router->get('/(\d+)/print',               "{$c}@printPdf");
 });
 
 // ── Repack ──────────────────────────────────────────────────────────
