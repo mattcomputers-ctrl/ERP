@@ -107,37 +107,70 @@ $__iconSvg = [
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="/assets/css/settings.css">
   <style>
-    /* Override old settings.css header/body when inside layout */
-    .app-layout .old-content .app-header { display: none !important; }
-    .app-layout .old-content { max-width: 100%; }
-    .app-layout .old-content > div[style*="max-width"] { max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
-    /* Force dark mode text colors on all old content */
-    .dark .old-content { color: #f1f5f9 !important; }
-    .dark .old-content h1, .dark .old-content h2, .dark .old-content h3,
-    .dark .old-content h4, .dark .old-content h5 { color: #f1f5f9 !important; }
-    .dark .old-content td, .dark .old-content th { color: #e2e8f0; }
-    .dark .old-content label { color: #94a3b8; }
-    .dark .old-content .data-table { background: #1e293b; border-color: #334155; }
-    .dark .old-content .data-table th { background: #162032; color: #94a3b8; border-color: #334155; }
-    .dark .old-content .data-table td { border-color: #1e293b; }
-    .dark .old-content .data-table tbody tr:hover td { background: #162032; }
-    .dark .old-content input, .dark .old-content select, .dark .old-content textarea {
+    /* ── Layout integration for legacy views ─────────────────── */
+    .page-content .app-header { display: none !important; }
+    .page-content .toast[id="toast"] { display: none !important; }
+    /* Override old max-width wrappers — content already has page-content padding */
+    .page-content div[style*="max-width:1200px"],
+    .page-content div[style*="max-width: 1200px"],
+    .page-content div[style*="max-width:1400px"],
+    .page-content div[style*="max-width:1000px"],
+    .page-content div[style*="max-width:1500px"],
+    .page-content div[style*="max-width:1600px"],
+    .page-content div[style*="max-width:700px"] {
+      max-width: 100% !important; margin-left: 0 !important; margin-right: 0 !important; padding-left: 0 !important; padding-right: 0 !important;
+    }
+    /* Settings page: remove its sticky header offset since our header replaces it */
+    .page-content .settings-nav { top: 0; height: calc(100vh - var(--header-height) - 48px); }
+    .page-content .settings-wrapper { min-height: calc(100vh - var(--header-height) - 48px); }
+
+    /* ── Dark mode for legacy views ──────────────────────────── */
+    .dark .page-content { color: #f1f5f9; }
+    .dark .page-content h1, .dark .page-content h2, .dark .page-content h3,
+    .dark .page-content h4, .dark .page-content h5 { color: #f1f5f9; }
+    .dark .page-content td, .dark .page-content th { color: #e2e8f0; }
+    .dark .page-content label { color: #94a3b8; }
+    .dark .page-content .data-table { background: #1e293b; border-color: #334155; }
+    .dark .page-content .data-table th { background: #162032; color: #94a3b8; border-color: #334155; }
+    .dark .page-content .data-table td { border-color: #1e293b; }
+    .dark .page-content .data-table tbody tr:hover td { background: #162032; }
+    .dark .page-content input, .dark .page-content select, .dark .page-content textarea {
       background: #374151 !important; color: #f1f5f9 !important; border-color: #4b5563 !important;
     }
-    .dark .old-content .settings-nav { background: #1e293b; border-color: #334155; }
-    .dark .old-content .nav-link { color: #e2e8f0; }
-    .dark .old-content a.nav-link:hover { background: #162032; color: #f1f5f9; }
-    .dark .old-content .nav-link.active { background: rgba(59,130,246,0.15); color: #60a5fa; }
-    .dark .old-content .settings-content { color: #f1f5f9; }
-    .dark .old-content .form-section, .dark .old-content .dropdown-add-form {
+    .dark .page-content a { color: #60a5fa; }
+    .dark .page-content .settings-nav { background: #1e293b; border-color: #334155; }
+    .dark .page-content .nav-link { color: #e2e8f0; }
+    .dark .page-content a.nav-link:hover { background: #162032; color: #f1f5f9; }
+    .dark .page-content .nav-link.active { background: rgba(59,130,246,0.15); color: #60a5fa; border-left-color: #60a5fa; }
+    .dark .page-content .nav-heading { color: #94a3b8; border-color: #334155; }
+    .dark .page-content .nav-group-title { color: #64748b; }
+    .dark .page-content .settings-content { color: #f1f5f9; }
+    .dark .page-content .form-section, .dark .page-content .dropdown-add-form {
       background: #1e293b; border-color: #334155;
     }
-    .dark .old-content .settings-card { background: #1e293b; border-color: #334155; }
-    .dark .old-content .btn-secondary { background: #1e293b; color: #e2e8f0; border-color: #334155; }
-    .dark .old-content .btn-secondary:hover { background: #162032; }
-    .dark .old-content .tab-btn, .dark .old-content .tab-bar button { color: #94a3b8; background: transparent; }
-    .dark .old-content .tab-btn.active, .dark .old-content .tab-bar button.active { color: #60a5fa; background: transparent; }
-    .dark .old-content .toast { display: none; } /* Layout handles toasts */
+    .dark .page-content .form-section h2 { color: #f1f5f9; border-color: #334155; }
+    .dark .page-content .settings-card { background: #1e293b; border-color: #334155; }
+    .dark .page-content .settings-card h3 { color: #60a5fa; }
+    .dark .page-content .settings-card p { color: #94a3b8; }
+    .dark .page-content .btn-secondary { background: #1e293b; color: #e2e8f0; border-color: #334155; }
+    .dark .page-content .btn-secondary:hover { background: #162032; }
+    .dark .page-content .tab-btn, .dark .page-content .tab-bar button {
+      color: #94a3b8; background: transparent; border-color: transparent;
+    }
+    .dark .page-content .tab-btn.active, .dark .page-content .tab-bar button.active {
+      color: #60a5fa; background: transparent;
+    }
+    .dark .page-content .tab-bar { border-color: #334155; }
+    .dark .page-content .inline-form { background: transparent; }
+    .dark .page-content .help-text { color: #64748b; }
+    .dark .page-content .checkbox-label { color: #94a3b8; }
+    .dark .page-content .empty-state { color: #64748b; }
+    .dark .page-content .form-group label { color: #94a3b8; }
+    .dark .page-content .inline-field label { color: #94a3b8; }
+    .dark .page-content .rich-toolbar { background: #162032; border-color: #334155; }
+    .dark .page-content .rich-toolbar button { background: #1e293b; color: #e2e8f0; border-color: #334155; }
+    .dark .page-content .rich-editor { color: #f1f5f9; }
+    .dark .page-content .rich-editor-wrap { border-color: #334155; }
   </style>
 </head>
 <body>
@@ -223,9 +256,7 @@ $__iconSvg = [
     <?php unset($_SESSION['toast']); endif; ?>
 
     <main class="page-content">
-      <div class="old-content">
-        <?= $__content ?>
-      </div>
+      <?= $__content ?>
     </main>
   </div>
 </div>

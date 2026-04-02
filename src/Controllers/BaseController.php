@@ -374,26 +374,30 @@ abstract class BaseController
             $_SESSION['toast'] = $__savedToast;
         }
 
-        // If the view contains <!DOCTYPE, it's a standalone page — extract just the body content
-        if (stripos($viewOutput, '<!DOCTYPE') !== false) {
-            // Strip everything before and including the opening wrapper div or body content
-            // Remove <!DOCTYPE...> through the header
-            $viewOutput = preg_replace('/^.*?<body[^>]*>\s*/si', '', $viewOutput);
-            // Remove old app-header
-            $viewOutput = preg_replace('/<header class="app-header">.*?<\/header>\s*/si', '', $viewOutput);
-            // Remove closing </body></html> and any script tags for toast/settings.js that layout handles
-            $viewOutput = preg_replace('/<script src="\/assets\/js\/settings\.js"><\/script>\s*/i', '', $viewOutput);
-            $viewOutput = preg_replace('/<script>\s*var\s+toast\s*=\s*document\.getElementById\(\'toast\'\).*?<\/script>\s*/si', '', $viewOutput);
-            $viewOutput = preg_replace('/<script>\s*var\s+t\s*=\s*document\.getElementById\(\'toast\'\).*?<\/script>\s*/si', '', $viewOutput);
-            $viewOutput = preg_replace('/\s*<\/body>\s*<\/html>\s*$/si', '', $viewOutput);
-            // Remove old toast display divs (layout handles toasts now)
-            $viewOutput = preg_replace('/<\?php\s+if\s*\(\s*isset\s*\(\s*\$_SESSION\s*\[\s*\'toast\'\s*\]\s*\)\s*\)\s*:\s*\?>.*?<\?php\s+unset\s*\(\s*\$_SESSION\s*\[\s*\'toast\'\s*\]\s*\)\s*;\s*(endif;)?\s*\?>/si', '', $viewOutput);
+        // Extract page title before stripping
+        $__pageTitle = $data['title'] ?? $data['pageTitle'] ?? '';
+        if (!$__pageTitle && preg_match('/<title>([^<]*?)\s*[—–-]\s*Precision/i', $viewOutput, $m)) {
+            $__pageTitle = trim($m[1]);
         }
 
-        // Extract page title from <title> tag if present, or from data
-        $__pageTitle = $data['title'] ?? $data['pageTitle'] ?? '';
-        if (!$__pageTitle && preg_match('/<title>([^<]*?)\s*[—-]\s*Precision/i', $viewOutput, $m)) {
-            $__pageTitle = trim($m[1]);
+        // If the view contains <!DOCTYPE, it's a standalone page — extract just the body content
+        if (stripos($viewOutput, '<!DOCTYPE') !== false) {
+            // Remove everything up to and including <body>
+            $viewOutput = preg_replace('/^.*?<body[^>]*>\s*/si', '', $viewOutput);
+            // Remove old app-header block
+            $viewOutput = preg_replace('/<header class="app-header">.*?<\/header>\s*/si', '', $viewOutput);
+            // Remove the old content wrapper div (max-width:1200px etc) — keep its contents
+            $viewOutput = preg_replace('/^\s*<div\s+style="[^"]*max-width:\s*\d+px[^"]*">\s*/si', '', $viewOutput);
+            // Remove corresponding closing </div> at end (before scripts)
+            $viewOutput = preg_replace('/\s*<\/div>\s*(<script[\s>])/si', '$1', $viewOutput);
+            // Remove old toast HTML (already rendered, layout handles toasts now)
+            $viewOutput = preg_replace('/<div class="toast toast-[^"]*"[^>]*id="toast">[^<]*<button[^>]*>[^<]*<\/button><\/div>\s*/si', '', $viewOutput);
+            // Remove settings.js script (layout has its own)
+            $viewOutput = preg_replace('/<script src="\/assets\/js\/settings\.js"><\/script>\s*/i', '', $viewOutput);
+            // Remove old toast timeout scripts
+            $viewOutput = preg_replace('/<script>\s*var\s+(toast|t)\s*=\s*document\.getElementById\([\'"]toast[\'"]\).*?<\/script>\s*/si', '', $viewOutput);
+            // Remove closing </body></html>
+            $viewOutput = preg_replace('/\s*<\/body>\s*<\/html>\s*$/si', '', $viewOutput);
         }
 
         // Render inside layout
