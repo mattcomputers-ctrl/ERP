@@ -469,8 +469,30 @@ $router->mount('/export', function () use ($router) {
 });
 
 // ── API ─────────────────────────────────────────────────────────────
-$router->mount('/api', function () use ($router) {
-    $router->get('/v1/items/(\d+)/recipe', 'PrecisionInk\\Controllers\\RecipeController@sdsApi');
+$router->get('/api/docs', 'PrecisionInk\\Controllers\\ApiController@docs');
+$router->mount('/api/v1', function () use ($router) {
+    $c = 'PrecisionInk\\Controllers\\ApiController';
+    $router->get('/health',                        "{$c}@health");
+    $router->get('/schema-version',                "{$c}@schemaVersion");
+    $router->get('/items',                         "{$c}@items");
+    $router->get('/items/(\d+)',                   "{$c}@itemDetail");
+    $router->get('/items/(\d+)/recipe',            'PrecisionInk\\Controllers\\RecipeController@sdsApi');
+    $router->get('/items/(\d+)/inventory',         "{$c}@itemInventory");
+    $router->get('/items/(\d+)/qc-spec',           "{$c}@itemQcSpec");
+    $router->get('/batches',                       "{$c}@batches");
+    $router->get('/batches/([\w-]+)',              "{$c}@batchDetail");
+    $router->get('/customers',                     "{$c}@customers");
+    $router->get('/customers/(\d+)',               "{$c}@customerDetail");
+    $router->get('/suppliers',                     "{$c}@suppliers");
+    $router->get('/suppliers/(\d+)',               "{$c}@supplierDetail");
+    $router->get('/inventory/lots',                "{$c}@inventoryLots");
+    $router->post('/inventory/adjustments',        "{$c}@inventoryAdjustment");
+    $router->get('/purchase-orders',               "{$c}@purchaseOrders");
+    $router->get('/purchase-orders/(\d+)',          "{$c}@purchaseOrderDetail");
+    $router->get('/sales-orders',                  "{$c}@salesOrders");
+    $router->get('/sales-orders/(\d+)',            "{$c}@salesOrderDetail");
+    $router->get('/traceability/raw-material',     "{$c}@traceRawMaterial");
+    $router->get('/traceability/finished-good',    "{$c}@traceFinishedGood");
 });
 
 // ── Settings ────────────────────────────────────────────────────────
