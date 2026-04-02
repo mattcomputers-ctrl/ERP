@@ -192,18 +192,16 @@ if [[ "$MODE" == "install" ]]; then
             "SELECT COUNT(*) FROM schema_migrations WHERE migration_name='${base}';" 2>/dev/null || echo "0")
         if [[ "$already" -eq 0 ]]; then
             if mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" < "$file" 2>/dev/null; then
-                mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e \
-                    "INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('${base}');" 2>/dev/null
                 ok "  Applied: ${base}"
-                ((MIGRATION_COUNT++))
             else
                 warn "  Partial: ${base} (some statements may have already run)"
-                mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e \
-                    "INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('${base}');" 2>/dev/null
             fi
+            mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e \
+                "INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('${base}');" 2>/dev/null || true
+            MIGRATION_COUNT=$((MIGRATION_COUNT + 1))
         fi
     done
-    ok "${MIGRATION_COUNT} new migration(s) applied"
+    ok "${MIGRATION_COUNT} migration(s) processed"
 
     # ── Step 8: Generate config ──────────────────────────────────────
     step "Generating configuration"
@@ -365,9 +363,9 @@ if [[ "$MODE" == "update" ]]; then
         if [[ "$already" -eq 0 ]]; then
             mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" < "$file" 2>/dev/null || true
             mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" -e \
-                "INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('${base}');" 2>/dev/null
+                "INSERT IGNORE INTO schema_migrations (migration_name) VALUES ('${base}');" 2>/dev/null || true
             ok "  Applied: ${base}"
-            ((MIGRATION_COUNT++))
+            MIGRATION_COUNT=$((MIGRATION_COUNT + 1))
         fi
     done
     ok "${MIGRATION_COUNT} new migration(s) applied"
