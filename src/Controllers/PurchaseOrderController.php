@@ -376,7 +376,320 @@ class PurchaseOrderController extends BaseController
         $this->jsonResponse(['unit_cost' => $cost !== false ? (float)$cost : null]);
     }
 
+    // ── Send ────────────────────────────────────────────────────────
+
+    public function send(string $id): void
+    {
+        if (!$this->checkPermission('purchase_orders', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+
+        $po = $this->getOrFail((int)$id);
+        if ($po['status'] !== 'DRAFT') {
+            $this->toast('Only DRAFT POs can be sent.', 'error');
+            $this->redirect("/purchase-orders/{$id}");
+            return;
+        }
+
+        $lines = $this->getLines((int)$id);
+
+        // Find supplier contact email
+        $contactStmt = $this->db()->prepare("
+            SELECT email FROM supplier_contacts
+            WHERE supplier_id = ? AND active = 1 AND email IS NOT NULL AND email != ''
+            ORDER BY FIELD(contact_type, 'SALES', 'GENERAL') ASC, is_primary DESC
+            LIMIT 1
+        ");
+        $contactStmt->execute([$po['supplier_id']]);
+        $contactEmail = $contactStmt->fetchColumn();
+
+        // Generate PDF
+        $html = $this->buildPoPdfHtml($po, $lines);
+        $dompdf = new \Dompdf\Dompdf();
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('letter', 'portrait');
+        $dompdf->render();
+        $pdfContent = $dompdf->output();
+
+        $pdfDir = sys_get_temp_dir();
+        $pdfPath = $pdfDir . '/' . $po['po_number'] . '.pdf';
+        file_put_contents($pdfPath, $pdfContent);
+
+        // Store as attachment
+        if ($this->attachmentService) {
+            $fakeFile = [
+                'name' => $po['po_number'] . '.pdf',
+                'type' => 'application/pdf',
+                'tmp_name' => $pdfPath,
+                'error' => 0,
+                'size' => strlen($pdfContent),
+            ];
+            try {
+                $this->attachmentService->upload('purchase_order', (int)$id, $fakeFile, 'PO PDF sent to supplier', $this->currentUserId());
+            } catch (\Throwable $e) {
+                // Non-fatal — continue even if attachment storage fails
+            }
+        }
+
+        // Email to supplier
+        if ($contactEmail && $this->emailService) {
+            $revSuffix = $po['revision_number'] > 0 ? ' Rev ' . $po['revision_number'] : '';
+            $this->emailService->send(
+                'purchase_order',
+                [$contactEmail],
+                [
+                    'po_number' => $po['po_number'] . $revSuffix,
+                    'supplier_name' => $po['supplier_name'],
+                    'order_date' => $po['order_date'],
+                    'expected_delivery' => $po['expected_delivery_date'] ?? 'TBD',
+                    'facility_name' => $po['facility_name'],
+                ],
+                $pdfPath,
+                $po['po_number'] . '.pdf',
+                'purchase_order',
+                (int)$id
+            );
+        }
+
+        // Update status
+        $this->db()->prepare("UPDATE purchase_orders SET status='SENT', updated_at=NOW() WHERE id=?")->execute([(int)$id]);
+
+        @unlink($pdfPath);
+
+        $this->auditLog('UPDATE', 'purchase_orders', (int)$id, ['status' => 'DRAFT'], ['status' => 'SENT']);
+        $msg = "PO {$po['po_number']} sent.";
+        if (!$contactEmail) $msg .= ' Warning: no supplier contact email found — PDF saved as attachment only.';
+        $this->toast($msg, $contactEmail ? 'success' : 'warning');
+        $this->redirect("/purchase-orders/{$id}");
+    }
+
+    // ── Receive ─────────────────────────────────────────────────────
+
+    public function receiveForm(string $id): void
+    {
+        if (!$this->checkPermission('purchase_orders', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+
+        $po = $this->getOrFail((int)$id);
+        if (!in_array($po['status'], ['SENT', 'PARTIAL'])) {
+            $this->toast('Only SENT or PARTIAL POs can receive shipments.', 'error');
+            $this->redirect("/purchase-orders/{$id}");
+            return;
+        }
+
+        // Load open/partial lines with item details (including shelf_life_days and requires_inspection)
+        $stmt = $this->db()->prepare("
+            SELECT pol.*, i.item_code, i.description as item_description,
+                   i.shelf_life_days, i.requires_inspection,
+                   u.abbreviation as uom_abbr, pe.name as pack_name
+            FROM purchase_order_lines pol
+            JOIN items i ON pol.item_id = i.id
+            LEFT JOIN uom u ON pol.uom_id = u.id
+            LEFT JOIN item_pack_extensions pe ON pol.pack_extension_id = pe.id
+            WHERE pol.po_id = ? AND pol.line_status IN ('OPEN','PARTIAL')
+            ORDER BY pol.id
+        ");
+        $stmt->execute([(int)$id]);
+        $lines = $stmt->fetchAll();
+
+        // Add remaining qty
+        foreach ($lines as &$l) {
+            $l['remaining'] = (float)$l['ordered_quantity'] - (float)$l['received_quantity'];
+        }
+        unset($l);
+
+        $this->renderView('purchase_orders/receive', [
+            'po' => $po,
+            'lines' => $lines,
+        ]);
+    }
+
+    public function receive(string $id): void
+    {
+        if (!$this->checkPermission('purchase_orders', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+
+        $po = $this->getOrFail((int)$id);
+        if (!in_array($po['status'], ['SENT', 'PARTIAL'])) {
+            $this->toast('Only SENT or PARTIAL POs can receive shipments.', 'error');
+            $this->redirect("/purchase-orders/{$id}");
+            return;
+        }
+
+        $supplierInvoice = trim($_POST['supplier_invoice_number'] ?? '');
+        $receiptDate = $_POST['receipt_date'] ?? date('Y-m-d');
+        $receiptNotes = trim($_POST['notes'] ?? '');
+        $lineData = $_POST['recv'] ?? [];
+
+        if (!$supplierInvoice) {
+            $this->toast('Supplier invoice number is required.', 'error');
+            $this->redirect("/purchase-orders/{$id}/receive");
+            return;
+        }
+
+        $userId = $this->currentUserId();
+
+        $this->db()->beginTransaction();
+        try {
+            // Create receipt header
+            $this->db()->prepare("
+                INSERT INTO po_receipts (po_id, facility_id, received_by, receipt_date, supplier_invoice_number, notes)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ")->execute([(int)$id, $po['facility_id'], $userId, $receiptDate, $supplierInvoice, $receiptNotes ?: null]);
+            $receiptId = (int)$this->db()->lastInsertId();
+
+            foreach ($lineData as $poLineId => $ld) {
+                $receivedQty = (float)($ld['received_quantity'] ?? 0);
+                if ($receivedQty <= 0) continue;
+
+                $unitCost = (float)($ld['unit_cost'] ?? 0);
+                $cocReceived = isset($ld['coc_received']) ? 1 : 0;
+                $cocRef = trim($ld['coc_reference'] ?? '') ?: null;
+                $cocDate = $ld['coc_date'] ?? null ?: null;
+                $discrepancyNote = trim($ld['discrepancy_note'] ?? '') ?: null;
+
+                // Get the PO line to know item details
+                $polStmt = $this->db()->prepare("SELECT pol.*, i.shelf_life_days, i.requires_inspection FROM purchase_order_lines pol JOIN items i ON pol.item_id = i.id WHERE pol.id = ?");
+                $polStmt->execute([(int)$poLineId]);
+                $poLine = $polStmt->fetch();
+                if (!$poLine) continue;
+
+                // Create receipt line
+                $this->db()->prepare("
+                    INSERT INTO po_receipt_lines (receipt_id, po_line_id, received_quantity, unit_cost, coc_received, coc_reference, coc_date, discrepancy_note)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ")->execute([$receiptId, (int)$poLineId, $receivedQty, $unitCost, $cocReceived, $cocRef, $cocDate, $discrepancyNote]);
+                $receiptLineId = (int)$this->db()->lastInsertId();
+
+                // Process lots
+                $lots = $ld['lots'] ?? [];
+                foreach ($lots as $lot) {
+                    $lotNumber = trim($lot['supplier_lot_number'] ?? '');
+                    $lotQty = (float)($lot['quantity'] ?? 0);
+                    $expDate = $lot['expiration_date'] ?? null ?: null;
+
+                    if (!$lotNumber || $lotQty <= 0) continue;
+
+                    // Auto-calculate expiration if item has shelf_life_days and no manual date
+                    if (!$expDate && $poLine['shelf_life_days']) {
+                        $expDate = date('Y-m-d', strtotime($receiptDate . ' + ' . (int)$poLine['shelf_life_days'] . ' days'));
+                    }
+
+                    // Determine FIFO lot status
+                    $lotStatus = $poLine['requires_inspection'] ? 'PENDING_INSPECTION' : 'AVAILABLE';
+
+                    // Create FIFO lot
+                    $fifoLotId = $this->fifoService->addLot(
+                        (int)$poLine['item_id'], (int)$po['facility_id'],
+                        $lotQty, $unitCost, $lotNumber,
+                        'RECEIPT', $receiptId, $expDate, $lotStatus, $userId,
+                        $poLine['pack_extension_id'] ? (int)$poLine['pack_extension_id'] : null
+                    );
+
+                    // Create receipt lot record
+                    $this->db()->prepare("
+                        INSERT INTO po_receipt_lots (receipt_line_id, supplier_lot_number, quantity, expiration_date, fifo_lot_id)
+                        VALUES (?, ?, ?, ?, ?)
+                    ")->execute([$receiptLineId, $lotNumber, $lotQty, $expDate, $fifoLotId]);
+
+                    // Create inspection record if needed
+                    if ($lotStatus === 'PENDING_INSPECTION') {
+                        $this->db()->prepare("
+                            INSERT INTO qc_incoming_inspections (fifo_lot_id, po_receipt_line_id, status)
+                            VALUES (?, ?, 'PENDING')
+                        ")->execute([$fifoLotId, $receiptLineId]);
+                    }
+                }
+
+                // Update PO line received quantity and status
+                $newReceived = (float)$poLine['received_quantity'] + $receivedQty;
+                $newLineStatus = $newReceived >= (float)$poLine['ordered_quantity'] ? 'RECEIVED' : 'PARTIAL';
+
+                $this->db()->prepare("
+                    UPDATE purchase_order_lines SET received_quantity = ?, line_status = ?, updated_at = NOW()
+                    WHERE id = ?
+                ")->execute([$newReceived, $newLineStatus, (int)$poLineId]);
+            }
+
+            // Recalculate PO status
+            $this->recalculatePOStatus((int)$id);
+
+            $this->db()->commit();
+
+            $this->auditCreate('po_receipts', $receiptId, [
+                'po_id' => (int)$id,
+                'po_number' => $po['po_number'],
+                'supplier_invoice' => $supplierInvoice,
+            ]);
+            $this->toast('Receipt posted successfully.', 'success');
+            $this->redirect("/purchase-orders/{$id}#receipts");
+        } catch (\App\Exceptions\NegativeInventoryException $e) {
+            $this->db()->rollBack();
+            $this->toast('Inventory error: ' . $e->getMessage(), 'error');
+            $this->redirect("/purchase-orders/{$id}/receive");
+        } catch (\Throwable $e) {
+            $this->db()->rollBack();
+            $this->toast('Error: ' . $e->getMessage(), 'error');
+            $this->redirect("/purchase-orders/{$id}/receive");
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────
+
+    private function buildPoPdfHtml(array $po, array $lines): string
+    {
+        $poValue = 0;
+        $lineRows = '';
+        $n = 1;
+        foreach ($lines as $l) {
+            if ($l['line_status'] === 'CANCELLED') continue;
+            $lt = (float)$l['ordered_quantity'] * (float)$l['unit_cost'];
+            $poValue += $lt;
+            $lineRows .= '<tr>'
+                . '<td>' . $n++ . '</td>'
+                . '<td>' . htmlspecialchars($l['item_code']) . '</td>'
+                . '<td>' . htmlspecialchars($l['item_description']) . '</td>'
+                . '<td>' . htmlspecialchars($l['pack_name'] ?? '') . '</td>'
+                . '<td style="text-align:right;">' . number_format((float)$l['ordered_quantity'], 4) . '</td>'
+                . '<td>' . htmlspecialchars($l['uom_abbr'] ?? '') . '</td>'
+                . '<td style="text-align:right;">$' . number_format((float)$l['unit_cost'], 4) . '</td>'
+                . '<td style="text-align:right;">$' . number_format($lt, 2) . '</td>'
+                . '</tr>';
+        }
+
+        $revLabel = $po['revision_number'] > 0 ? ' Rev ' . $po['revision_number'] : '';
+
+        return '<!DOCTYPE html><html><head><style>
+            body { font-family: Arial, sans-serif; font-size: 12px; margin: 30px; }
+            h1 { font-size: 20px; margin-bottom: 4px; }
+            .meta { margin-bottom: 16px; color: #555; }
+            table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+            th, td { border: 1px solid #ccc; padding: 5px 8px; text-align: left; font-size: 11px; }
+            th { background: #f0f0f0; }
+            .total-row td { font-weight: bold; border-top: 2px solid #333; }
+            .header-grid { display: flex; justify-content: space-between; margin-bottom: 16px; }
+            .header-block { width: 48%; }
+            .header-block p { margin: 2px 0; }
+            .label { font-weight: bold; color: #555; font-size: 10px; text-transform: uppercase; }
+        </style></head><body>
+            <h1>Purchase Order ' . htmlspecialchars($po['po_number']) . $revLabel . '</h1>
+            <div class="meta">Order Date: ' . date('M j, Y', strtotime($po['order_date'])) . '
+                | Expected Delivery: ' . ($po['expected_delivery_date'] ? date('M j, Y', strtotime($po['expected_delivery_date'])) : 'TBD') . '</div>
+            <table style="border:none; margin-bottom:16px;"><tr>
+                <td style="border:none; vertical-align:top; width:50%;">
+                    <p class="label">Supplier</p>
+                    <p><strong>' . htmlspecialchars($po['supplier_name']) . '</strong></p>
+                    <p>' . htmlspecialchars($po['supplier_code']) . '</p>
+                </td>
+                <td style="border:none; vertical-align:top; width:50%;">
+                    <p class="label">Ship To Facility</p>
+                    <p><strong>' . htmlspecialchars($po['facility_name']) . '</strong></p>
+                </td>
+            </tr></table>'
+            . ($po['shipping_instructions'] ? '<p><strong>Shipping Instructions:</strong> ' . htmlspecialchars($po['shipping_instructions']) . '</p>' : '')
+            . '<table><thead><tr><th>#</th><th>Item Code</th><th>Description</th><th>Pack</th><th style="text-align:right;">Qty</th><th>UOM</th><th style="text-align:right;">Unit Cost</th><th style="text-align:right;">Total</th></tr></thead><tbody>'
+            . $lineRows
+            . '<tr class="total-row"><td colspan="7" style="text-align:right;">Total</td><td style="text-align:right;">$' . number_format($poValue, 2) . '</td></tr>'
+            . '</tbody></table>'
+            . ($po['notes'] ? '<p style="margin-top:12px;"><strong>Notes:</strong> ' . htmlspecialchars($po['notes']) . '</p>' : '')
+            . '</body></html>';
+    }
 
     private function getOrFail(int $id): array
     {

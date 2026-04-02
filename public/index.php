@@ -185,6 +185,9 @@ $router->mount('/purchase-orders', function () use ($router) {
     $router->post('/(\d+)/edit',                       "{$c}@update");
     $router->post('/(\d+)/cancel',                     "{$c}@cancel");
     $router->post('/(\d+)/clone',                      "{$c}@clonePO");
+    $router->post('/(\d+)/send',                       "{$c}@send");
+    $router->get('/(\d+)/receive',                     "{$c}@receiveForm");
+    $router->post('/(\d+)/receive',                    "{$c}@receive");
     $router->post('/(\d+)/cancel-line/(\d+)',          "{$c}@cancelLine");
 });
 
