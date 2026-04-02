@@ -66,13 +66,12 @@ if [[ "$MODE" == "install" ]]; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
 
-    # Add PHP PPA if php8.2 not available
-    if ! apt-cache show php8.2 &>/dev/null; then
-        info "Adding PHP 8.2 repository..."
-        apt-get install -y -qq software-properties-common
-        add-apt-repository -y ppa:ondrej/php
-        apt-get update -qq
-    fi
+    # Always add ondrej/php PPA — required on Ubuntu 22.04/24.04
+    # for php8.2 packages to be available
+    info "Adding PHP 8.2 repository (ppa:ondrej/php)..."
+    apt-get install -y -qq software-properties-common >/dev/null 2>&1
+    add-apt-repository -y ppa:ondrej/php >/dev/null 2>&1
+    apt-get update -qq
 
     apt-get install -y -qq \
         apache2 \
