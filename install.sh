@@ -376,6 +376,24 @@ if [[ "$MODE" == "update" ]]; then
     done
     ok "${MIGRATION_COUNT} new migration(s) applied"
 
+    # Fix collation mismatches — MySQL 8 may create tables with utf8mb4_0900_ai_ci
+    # even when the database default is utf8mb4_unicode_ci
+    step "Checking table collations"
+    TABLES_TO_FIX=$(mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" -sse \
+        "SELECT GROUP_CONCAT(TABLE_NAME) FROM information_schema.TABLES
+         WHERE TABLE_SCHEMA='${DB_NAME}' AND TABLE_COLLATION != 'utf8mb4_unicode_ci'
+           AND TABLE_COLLATION IS NOT NULL;" 2>/dev/null || echo "")
+    if [[ -n "$TABLES_TO_FIX" && "$TABLES_TO_FIX" != "NULL" ]]; then
+        IFS=',' read -ra FIX_ARRAY <<< "$TABLES_TO_FIX"
+        for tbl in "${FIX_ARRAY[@]}"; do
+            mysql -u"${DB_USER}" -p"${DB_PASS}" -h"${DB_HOST}" "${DB_NAME}" -e \
+                "ALTER TABLE \`${tbl}\` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
+        done
+        ok "Fixed collation on ${#FIX_ARRAY[@]} table(s)"
+    else
+        ok "All table collations OK"
+    fi
+
     step "Refreshing permissions"
     chown -R www-data:www-data "$APP_DIR"
     chmod -R 775 "${APP_DIR}/storage" "${APP_DIR}/logs"
