@@ -360,6 +360,22 @@ $router->mount('/batches', function () use ($router) {
     $router->get('/(\d+)/packet',              'PrecisionInk\\Controllers\\MrpController@batchPacket');
 });
 
+// ── QuickBooks Sync ────────────────────────────────────────────────
+$router->mount('/qb-sync', function () use ($router) {
+    $c = 'PrecisionInk\\Controllers\\QbSyncController';
+    $router->get('/',                          "{$c}@dashboard");
+    $router->post('/export/invoices',          "{$c}@exportInvoices");
+    $router->post('/export/bills',             "{$c}@exportBills");
+    $router->post('/export/customers',         "{$c}@exportCustomers");
+    $router->post('/export/vendors',           "{$c}@exportVendors");
+    $router->post('/export/items',             "{$c}@exportItems");
+    $router->post('/export/inventory',         "{$c}@exportInventory");
+    $router->get('/oauth/connect',             "{$c}@oauthConnect");
+    $router->get('/oauth/callback',            "{$c}@oauthCallback");
+    $router->post('/oauth/disconnect',         "{$c}@oauthDisconnect");
+    $router->get('/log',                       "{$c}@syncLog");
+});
+
 // ── MRP + Production ────────────────────────────────────────────────
 $router->mount('/mrp', function () use ($router) {
     $c = 'PrecisionInk\\Controllers\\MrpController';
@@ -603,6 +619,8 @@ $router->mount('/settings', function () use ($router) {
     $router->post('/industry-segments',  "{$c}@saveIndustrySegments");
     $router->get('/package-types-list',  "{$c}@packageTypes");
     $router->post('/package-types-list', "{$c}@savePackageTypes");
+    $router->get('/quickbooks',          "{$c}@quickbooks");
+    $router->post('/quickbooks',         "{$c}@saveQuickbooks");
 
     // Facilities
     $router->get('/facilities',          "{$c}@facilities");

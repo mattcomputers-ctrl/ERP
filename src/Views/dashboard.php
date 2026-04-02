@@ -199,6 +199,7 @@
                 <a href="/consignment" class="quick-btn">Consignment</a>
                 <a href="/traceability" class="quick-btn">Traceability</a>
                 <a href="/reports" class="quick-btn">Reports</a>
+                <a href="/qb-sync" class="quick-btn">QB Sync</a>
                 <a href="/import" class="quick-btn">Import</a>
                 <a href="/export" class="quick-btn">Export</a>
             </div>

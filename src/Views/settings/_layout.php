@@ -121,6 +121,11 @@
             </div>
 
             <div class="nav-group">
+                <h4 class="nav-group-title">Integrations</h4>
+                <a href="/settings/quickbooks" class="nav-link <?= ($section ?? '') === 'quickbooks' ? 'active' : '' ?>">QuickBooks</a>
+            </div>
+
+            <div class="nav-group">
                 <h4 class="nav-group-title">Advanced</h4>
                 <a href="/settings/custom-fields" class="nav-link <?= ($section ?? '') === 'custom-fields' ? 'active' : '' ?>">Custom Fields</a>
                 <a href="/settings/announcements" class="nav-link <?= ($section ?? '') === 'announcements' ? 'active' : '' ?>">Announcements</a>

@@ -577,6 +577,64 @@ class SettingsController extends BaseController
         $this->redirect('/settings/equipment');
     }
 
+    // ── QuickBooks Settings ──────────────────────────────────────────
+
+    public function quickbooks(): void
+    {
+        $this->requireAdmin();
+
+        $settings = [];
+        $rows = $this->db()->query("SELECT setting_key, setting_value FROM qb_settings")->fetchAll(\PDO::FETCH_KEY_PAIR);
+        $settings = $rows;
+
+        // GL groups from items ENUM
+        $glGroups = ['RAW_MATERIAL', 'FINISHED_GOOD', 'INTERMEDIATE', 'RESALE', 'SERVICE'];
+
+        // Account mappings
+        $mappings = $this->db()->query("SELECT * FROM qb_account_mappings WHERE active = 1 ORDER BY mapping_type, mapping_key")->fetchAll(\PDO::FETCH_ASSOC);
+        $mappingMap = [];
+        foreach ($mappings as $m) {
+            $mappingMap[$m['mapping_type']][$m['mapping_key']] = $m['qb_account_name'];
+        }
+
+        $this->renderView('settings/_layout', [
+            'title' => 'QuickBooks', 'section' => 'quickbooks',
+            'content' => 'settings/quickbooks',
+            'settings' => $settings, 'glGroups' => $glGroups, 'mappingMap' => $mappingMap,
+        ]);
+    }
+
+    public function saveQuickbooks(): void
+    {
+        $this->requireAdmin();
+
+        $keys = ['qb_mode', 'qb_company_name', 'qb_ar_account', 'qb_ap_account',
+                 'qb_default_income_account', 'qb_default_cogs_account', 'qb_default_inventory_account',
+                 'qb_online_client_id', 'qb_online_client_secret'];
+
+        foreach ($keys as $key) {
+            $val = trim($_POST[$key] ?? '');
+            $this->db()->prepare("INSERT INTO qb_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()")
+                ->execute([$key, $val]);
+        }
+
+        // Save GL group account mappings
+        $glGroups = ['RAW_MATERIAL', 'FINISHED_GOOD', 'INTERMEDIATE', 'RESALE', 'SERVICE'];
+        foreach ($glGroups as $gl) {
+            foreach (['income', 'cogs', 'inventory'] as $type) {
+                $mappingType = "gl_group_{$type}";
+                $val = trim($_POST["mapping_{$type}_{$gl}"] ?? '');
+                if ($val !== '') {
+                    $this->db()->prepare("INSERT INTO qb_account_mappings (mapping_type, mapping_key, qb_account_name) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE qb_account_name = VALUES(qb_account_name)")
+                        ->execute([$mappingType, $gl, $val]);
+                }
+            }
+        }
+
+        $this->toast('QuickBooks settings saved.', 'success');
+        $this->redirect('/settings/quickbooks');
+    }
+
     // ── QC Test Library ──────────────────────────────────────────
 
     public function qcTestDefinitions(): void
