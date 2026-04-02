@@ -31,6 +31,23 @@ body {
     letter-spacing: 0.5px;
 }
 
+.nav-back-btn {
+    color: #cbd5e1;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    margin-left: 16px;
+    padding: 4px 10px;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 4px;
+    transition: all 0.15s;
+}
+.nav-back-btn:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.1);
+    border-color: rgba(255,255,255,0.3);
+}
+
 .user-name { font-size: 13px; opacity: 0.85; }
 
 /* ── Settings Layout ─────────────────────────────────────────── */

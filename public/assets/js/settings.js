@@ -2,6 +2,21 @@
  * Precision Ink ERP — Global JS
  */
 
+// ── Dashboard back button (injected on every non-dashboard page) ──
+document.addEventListener('DOMContentLoaded', function () {
+    var path = window.location.pathname.replace(/\/+$/, '') || '/';
+    if (path !== '/' && path !== '/dashboard') {
+        var headerLeft = document.querySelector('.header-left');
+        if (headerLeft) {
+            var btn = document.createElement('a');
+            btn.href = '/';
+            btn.className = 'nav-back-btn';
+            btn.textContent = '\u2190 Dashboard';
+            headerLeft.insertBefore(btn, headerLeft.firstChild.nextSibling);
+        }
+    }
+});
+
 // ── Auto-dismiss toast ──────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function () {
     var toast = document.getElementById('toast');
