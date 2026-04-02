@@ -197,8 +197,22 @@ $router->mount('/purchase-orders', function () use ($router) {
 });
 
 // ── Sales Orders ────────────────────────────────────────────────────
-$router->mount('/sales-orders', function () use ($router) {
-    // TODO: SO lifecycle
+$router->mount('/orders', function () use ($router) {
+    $c = 'PrecisionInk\\Controllers\\SalesOrderController';
+    $router->get('/',                            "{$c}@index");
+    $router->get('/create',                      "{$c}@create");
+    $router->post('/create',                     "{$c}@store");
+    $router->get('/resolve-ship-to',             "{$c}@resolveShipTo");
+    $router->get('/(\d+)',                       "{$c}@show");
+    $router->get('/(\d+)/edit',                  "{$c}@editForm");
+    $router->post('/(\d+)/edit',                 "{$c}@update");
+    $router->post('/(\d+)/confirm',              "{$c}@confirm");
+    $router->post('/(\d+)/hold',                 "{$c}@hold");
+    $router->post('/(\d+)/release-hold',         "{$c}@releaseHold");
+    $router->post('/(\d+)/cancel',               "{$c}@cancel");
+    $router->post('/(\d+)/clone',                "{$c}@cloneOrder");
+    $router->post('/(\d+)/acknowledgment',       "{$c}@acknowledgment");
+    $router->post('/(\d+)/proforma',             "{$c}@proforma");
 });
 
 // ── Quotes ──────────────────────────────────────────────────────────
