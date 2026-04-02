@@ -371,7 +371,15 @@ $router->mount('/rma', function () use ($router) {
 
 // ── Consignment ─────────────────────────────────────────────────────
 $router->mount('/consignment', function () use ($router) {
-    // TODO: consignment inventory tracking
+    $c = 'PrecisionInk\\Controllers\\ConsignmentController';
+    $router->get('/',                              "{$c}@index");
+    $router->get('/create',                        "{$c}@createForm");
+    $router->post('/create',                       "{$c}@store");
+    $router->get('/(\d+)',                         "{$c}@show");
+    $router->post('/(\d+)/consume',                "{$c}@consume");
+    $router->post('/(\d+)/close',                  "{$c}@close");
+    $router->get('/(\d+)/statement',               "{$c}@statement");
+    $router->post('/(\d+)/statement/email',        "{$c}@emailStatement");
 });
 
 // ── CRM ─────────────────────────────────────────────────────────────

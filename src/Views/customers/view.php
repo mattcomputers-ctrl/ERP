@@ -550,7 +550,47 @@
 
         <!-- ═══ Consignment Tab ═══ -->
         <div id="tab-consignment" class="tab-panel">
-            <p style="color:#9ca3af; padding:16px;">Consignment module — built in Session 22.</p>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+                <a href="/consignment/create" class="btn btn-primary btn-sm">+ New Placement</a>
+            </div>
+            <?php
+            try {
+                $conStmt = $this->db ? null : null;
+                $conDb = \PrecisionInk\Controllers\BaseController::getSharedDb();
+                if ($conDb) {
+                    $conStmt = $conDb->prepare("
+                        SELECT cp.*, i.item_code, i.description as item_description,
+                               COALESCE((SELECT SUM(cc.quantity_consumed) FROM consignment_consumption cc WHERE cc.placement_id = cp.id), 0) as total_consumed,
+                               (SELECT MAX(cc.consumption_date) FROM consignment_consumption cc WHERE cc.placement_id = cp.id) as last_consumption
+                        FROM consignment_placements cp
+                        JOIN items i ON cp.item_id = i.id
+                        WHERE cp.customer_id = ? AND cp.status = 'ACTIVE'
+                        ORDER BY cp.placement_date DESC
+                    ");
+                    $conStmt->execute([$customer['id']]);
+                    $conPlacements = $conStmt->fetchAll();
+                } else { $conPlacements = []; }
+            } catch (\Throwable $e) { $conPlacements = []; }
+            ?>
+            <?php if(empty($conPlacements)):?>
+                <p style="color:#9ca3af;padding:16px;">No active consignment placements.</p>
+            <?php else:?>
+                <table class="data-table">
+                    <thead><tr><th>CON #</th><th>Item</th><th style="text-align:right;">Placed</th><th style="text-align:right;">Consumed</th><th style="text-align:right;">Balance</th><th>Last Consumption</th></tr></thead>
+                    <tbody>
+                    <?php foreach($conPlacements as $cp):$bal=(float)$cp['quantity_placed']-(float)$cp['total_consumed'];?>
+                    <tr>
+                        <td><a href="/consignment/<?=$cp['id']?>" style="color:#2563eb;text-decoration:none;font-weight:500;"><?=htmlspecialchars($cp['con_number'])?></a></td>
+                        <td><?=htmlspecialchars($cp['item_code'])?> <span style="color:#6b7280;font-size:12px;"><?=htmlspecialchars($cp['item_description'])?></span></td>
+                        <td style="text-align:right;"><?=number_format((float)$cp['quantity_placed'],4)?></td>
+                        <td style="text-align:right;"><?=number_format((float)$cp['total_consumed'],4)?></td>
+                        <td style="text-align:right;font-weight:600;"><?=number_format($bal,4)?></td>
+                        <td><?=$cp['last_consumption']?date('M j, Y',strtotime($cp['last_consumption'])):'—'?></td>
+                    </tr>
+                    <?php endforeach;?>
+                    </tbody>
+                </table>
+            <?php endif;?>
         </div>
 
         <!-- ═══ Custom Fields Tab ═══ -->
