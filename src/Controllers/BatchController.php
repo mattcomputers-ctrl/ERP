@@ -545,7 +545,388 @@ class BatchController extends BaseController
         ]);
     }
 
+    // ── Close ───────────────────────────────────────────────────────
+
+    public function closeForm(string $id): void
+    {
+        if (!$this->checkPermission('batch_tickets', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+        $batch = $this->getOrFail((int)$id);
+        if (!in_array($batch['status'], ['OPEN', 'IN_PROGRESS'])) { $this->toast('Only OPEN or IN_PROGRESS batches can be closed.', 'error'); $this->redirect("/batches/{$id}"); return; }
+
+        $lines = $this->db()->prepare("SELECT bl.*, i.item_code, i.description as item_description, u.abbreviation as uom_abbr FROM batch_ticket_lines bl JOIN items i ON bl.item_id = i.id LEFT JOIN uom u ON bl.uom_id = u.id WHERE bl.batch_id = ? ORDER BY bl.sequence")->execute([(int)$id]) ? null : null;
+        $lineStmt = $this->db()->prepare("SELECT bl.*, i.item_code, i.description as item_description, u.abbreviation as uom_abbr FROM batch_ticket_lines bl JOIN items i ON bl.item_id = i.id LEFT JOIN uom u ON bl.uom_id = u.id WHERE bl.batch_id = ? ORDER BY bl.sequence");
+        $lineStmt->execute([(int)$id]);
+        $lines = $lineStmt->fetchAll();
+
+        // Available lots per ingredient
+        $lotsPerItem = [];
+        foreach ($lines as $l) {
+            if (!isset($lotsPerItem[$l['item_id']])) {
+                $lotStmt = $this->db()->prepare("SELECT fl.id, fl.lot_number, fl.remaining_quantity, fl.unit_cost, fl.expiration_date, COALESCE(ifl.location,'') as location FROM fifo_lots fl LEFT JOIN item_facility_locations ifl ON ifl.item_id = fl.item_id AND ifl.facility_id = fl.facility_id WHERE fl.item_id = ? AND fl.facility_id = ? AND fl.status = 'AVAILABLE' AND fl.remaining_quantity > 0 ORDER BY fl.created_at ASC, fl.id ASC");
+                $lotStmt->execute([$l['item_id'], $batch['facility_id']]);
+                $lotsPerItem[$l['item_id']] = $lotStmt->fetchAll();
+            }
+        }
+
+        $packStmt = $this->db()->prepare("SELECT bp.*, pe.name as pack_name FROM batch_ticket_packs bp JOIN item_pack_extensions pe ON bp.pack_extension_id = pe.id WHERE bp.batch_id = ?");
+        $packStmt->execute([(int)$id]);
+
+        // QC spec
+        $spec = null; $tests = [];
+        $specId = $batch['qc_spec_id'];
+        if ($specId) {
+            $spec = $this->db()->prepare("SELECT * FROM qc_specs WHERE id = ?")->execute([$specId]) ? null : null;
+            $specStmt = $this->db()->prepare("SELECT * FROM qc_specs WHERE id = ?");
+            $specStmt->execute([$specId]);
+            $spec = $specStmt->fetch();
+        }
+        if (!$spec) {
+            $specStmt = $this->db()->prepare("SELECT * FROM qc_specs WHERE item_id = ? AND is_active = 1 LIMIT 1");
+            $specStmt->execute([$batch['item_id']]);
+            $spec = $specStmt->fetch();
+        }
+        if ($spec) {
+            $testStmt = $this->db()->prepare("SELECT * FROM qc_spec_tests WHERE spec_id = ? ORDER BY display_sequence, id");
+            $testStmt->execute([$spec['id']]);
+            $tests = $testStmt->fetchAll();
+        }
+
+        $scrapStmt = $this->db()->prepare("SELECT bs.*, u.abbreviation as uom_abbr FROM batch_scrap bs LEFT JOIN uom u ON bs.uom_id = u.id WHERE bs.batch_id = ?");
+        $scrapStmt->execute([(int)$id]);
+
+        $uoms = $this->db()->query("SELECT id, abbreviation FROM uom WHERE active=1 ORDER BY abbreviation")->fetchAll();
+
+        $this->renderView('batch_tickets/close', [
+            'batch' => $batch, 'lines' => $lines, 'lotsPerItem' => $lotsPerItem,
+            'packs' => $packStmt->fetchAll(), 'spec' => $spec, 'tests' => $tests,
+            'scrap' => $scrapStmt->fetchAll(), 'uoms' => $uoms,
+        ]);
+    }
+
+    public function close(string $id): void
+    {
+        if (!$this->checkPermission('batch_tickets', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+        $batch = $this->getOrFail((int)$id);
+        if (!in_array($batch['status'], ['OPEN', 'IN_PROGRESS'])) { $this->toast('Cannot close.', 'error'); $this->redirect("/batches/{$id}"); return; }
+
+        $userId = $this->currentUserId();
+        $ingredientData = $_POST['ingredients'] ?? [];
+        $packData = $_POST['packs'] ?? [];
+        $qcData = $_POST['qc'] ?? [];
+
+        $this->db()->beginTransaction();
+        try {
+            // 1. Release reservations
+            if ($this->reservationService) {
+                $this->reservationService->releaseAllForReference('BATCH', (int)$id);
+            }
+
+            // 2. Process ingredients — consume from FIFO
+            $bilInsert = $this->db()->prepare("INSERT INTO batch_ingredient_lots (batch_id, batch_line_id, ingredient_item_id, supplier_lot_number, fifo_lot_id, quantity_used, unit_cost) VALUES (?,?,?,?,?,?,?)");
+
+            foreach ($ingredientData as $lineId => $lineData) {
+                $actualQty = (float)($lineData['actual_quantity'] ?? 0);
+                $this->db()->prepare("UPDATE batch_ticket_lines SET actual_quantity = ? WHERE id = ? AND batch_id = ?")->execute([$actualQty, (int)$lineId, (int)$id]);
+
+                // Get item_id for this line
+                $lineInfo = $this->db()->prepare("SELECT item_id FROM batch_ticket_lines WHERE id = ?");
+                $lineInfo->execute([(int)$lineId]);
+                $itemId = (int)$lineInfo->fetchColumn();
+
+                if ($actualQty > 0) {
+                    $consumed = $this->fifoService->consume($itemId, (int)$batch['facility_id'], $actualQty, 'BATCH', (int)$id, $userId);
+                    foreach ($consumed as $c) {
+                        $bilInsert->execute([(int)$id, (int)$lineId, $itemId, $c['lot_number'], $c['lot_id'], $c['quantity_consumed'], $c['unit_cost']]);
+                    }
+                }
+            }
+
+            // 3. Intermediate batch linking
+            $parentStmt = $this->db()->prepare("SELECT DISTINCT fl.source_id FROM batch_ingredient_lots bil JOIN fifo_lots fl ON bil.fifo_lot_id = fl.id WHERE bil.batch_id = ? AND fl.source_type = 'BATCH'");
+            $parentStmt->execute([(int)$id]);
+            foreach ($parentStmt->fetchAll(\PDO::FETCH_COLUMN) as $parentId) {
+                $this->db()->prepare("INSERT IGNORE INTO batch_lineage (parent_batch_id, child_batch_id) VALUES (?, ?)")->execute([(int)$parentId, (int)$id]);
+            }
+
+            // 4. Update packs and calculate yield
+            $totalYield = 0;
+            foreach ($packData as $packId => $pd) {
+                $actualQty = (float)($pd['actual_quantity'] ?? 0);
+                $containerCount = (int)($pd['container_count'] ?? 0) ?: null;
+                $this->db()->prepare("UPDATE batch_ticket_packs SET actual_quantity = ?, container_count = ?, updated_at = NOW() WHERE id = ? AND batch_id = ?")
+                    ->execute([$actualQty, $containerCount, (int)$packId, (int)$id]);
+                $totalYield += $actualQty;
+            }
+
+            // 5. Calculate costs
+            // Re-read from batch_cost service after ingredient lots are inserted
+            $costStmt = $this->db()->prepare("SELECT COALESCE(SUM(quantity_used * unit_cost), 0) FROM batch_ingredient_lots WHERE batch_id = ?");
+            $costStmt->execute([(int)$id]);
+            $totalCost = (float)$costStmt->fetchColumn();
+            $costPerUnit = $totalYield > 0 ? $totalCost / $totalYield : 0;
+            $yieldPct = (float)$batch['target_quantity'] > 0 ? ($totalYield / (float)$batch['target_quantity']) * 100 : 0;
+
+            // 6. Add finished good FIFO lots
+            foreach ($packData as $packId => $pd) {
+                $actualQty = (float)($pd['actual_quantity'] ?? 0);
+                if ($actualQty <= 0) continue;
+
+                $peId = $this->db()->prepare("SELECT pack_extension_id FROM batch_ticket_packs WHERE id = ?");
+                $peId->execute([(int)$packId]);
+                $packExtId = (int)$peId->fetchColumn();
+
+                // Expiration from shelf life
+                $shelfStmt = $this->db()->prepare("SELECT shelf_life_days FROM items WHERE id = ?");
+                $shelfStmt->execute([$batch['item_id']]);
+                $shelfDays = (int)$shelfStmt->fetchColumn();
+                $expDate = $shelfDays > 0 ? date('Y-m-d', strtotime("+{$shelfDays} days")) : null;
+
+                $this->fifoService->addLot(
+                    (int)$batch['item_id'], (int)$batch['facility_id'],
+                    $actualQty, $costPerUnit, $batch['batch_number'],
+                    'BATCH', (int)$id, $expDate, 'AVAILABLE', $userId, $packExtId ?: null
+                );
+            }
+
+            // 7. Save QC results
+            $specId = $batch['qc_spec_id'];
+            if (!$specId) {
+                $specCheck = $this->db()->prepare("SELECT id FROM qc_specs WHERE item_id = ? AND is_active = 1 LIMIT 1");
+                $specCheck->execute([$batch['item_id']]);
+                $specId = $specCheck->fetchColumn() ?: null;
+            }
+            if ($specId && !empty($qcData)) {
+                $qcInsert = $this->db()->prepare("INSERT INTO qc_results (batch_id, spec_id, test_id, result_value, pass_fail, is_out_of_spec, notes, entered_by) VALUES (?,?,?,?,?,?,?,?)");
+                foreach ($qcData as $testId => $td) {
+                    $resultVal = trim($td['result_value'] ?? '');
+                    if ($resultVal === '') continue;
+                    $passFail = $td['pass_fail'] ?? 'PASS';
+                    $oos = (int)($td['is_out_of_spec'] ?? 0);
+                    $notes = trim($td['notes'] ?? '') ?: null;
+                    $qcInsert->execute([(int)$id, (int)$specId, (int)$testId, $resultVal, $passFail, $oos, $notes, $userId]);
+                }
+            }
+
+            // 8. Update batch ticket
+            $this->db()->prepare("UPDATE batch_tickets SET status='CLOSED', actual_yield=?, yield_percentage=?, total_batch_cost=?, cost_per_unit=?, closed_by=?, closed_at=NOW(), updated_at=NOW() WHERE id=?")
+                ->execute([$totalYield, round($yieldPct, 4), $totalCost, round($costPerUnit, 4), $userId, (int)$id]);
+
+            $this->db()->commit();
+
+            $this->auditLog('UPDATE', 'batch_tickets', (int)$id, ['status' => $batch['status']], ['status' => 'CLOSED', 'yield' => $totalYield, 'cost' => $totalCost]);
+            $this->toast("Batch {$batch['batch_number']} closed. Yield: " . number_format($totalYield, 4) . ", Cost: $" . number_format($totalCost, 2), 'success');
+            $this->redirect("/batches/{$id}");
+        } catch (\App\Exceptions\NegativeInventoryException $e) {
+            $this->db()->rollBack();
+            $this->toast('Inventory shortfall: ' . $e->getMessage(), 'error');
+            $this->redirect("/batches/{$id}/close");
+        } catch (\Throwable $e) {
+            $this->db()->rollBack();
+            $this->toast('Error closing batch: ' . $e->getMessage(), 'error');
+            $this->redirect("/batches/{$id}/close");
+        }
+    }
+
+    // ── Rework ──────────────────────────────────────────────────────
+
+    public function reworkForm(string $id): void
+    {
+        if (!$this->checkPermission('batch_tickets', 'create')) { http_response_code(403); echo 'Access Denied'; exit; }
+        $batch = $this->getOrFail((int)$id);
+        if ($batch['status'] !== 'CLOSED') { $this->toast('Only CLOSED batches can be reworked.', 'error'); $this->redirect("/batches/{$id}"); return; }
+
+        $this->renderView('batch_tickets/rework', array_merge($this->formData('rework', $batch), ['originalBatch' => $batch]));
+    }
+
+    public function rework(string $id): void
+    {
+        if (!$this->checkPermission('batch_tickets', 'create')) { http_response_code(403); echo 'Access Denied'; exit; }
+        $batch = $this->getOrFail((int)$id);
+        if ($batch['status'] !== 'CLOSED') { $this->toast('Only CLOSED batches can be reworked.', 'error'); $this->redirect("/batches/{$id}"); return; }
+
+        $userId = $this->currentUserId();
+        $reason = trim($_POST['rework_reason'] ?? '');
+        $targetQty = (float)($_POST['target_quantity'] ?? $batch['actual_yield']);
+
+        if (!$reason) { $this->toast('Rework reason is required.', 'error'); $this->redirect("/batches/{$id}/rework"); return; }
+
+        $this->db()->beginTransaction();
+        try {
+            // Quarantine original output lots
+            $origLots = $this->db()->prepare("SELECT id FROM fifo_lots WHERE source_id = ? AND source_type = 'BATCH' AND item_id = ? AND status = 'AVAILABLE'");
+            $origLots->execute([(int)$id, $batch['item_id']]);
+            foreach ($origLots->fetchAll(\PDO::FETCH_COLUMN) as $lotId) {
+                $this->fifoService->quarantine((int)$lotId, 'Rework: ' . $reason, $userId);
+            }
+
+            // Create rework batch
+            $reworkNumber = $this->generateBatchNumber();
+            $this->db()->prepare("
+                INSERT INTO batch_tickets (batch_number, facility_id, item_id, recipe_version_id, qc_spec_id,
+                    target_quantity, priority, scheduled_date, assigned_to, internal_notes,
+                    is_rework, rework_of_batch_id, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, 1, ?, ?)
+            ")->execute([
+                $reworkNumber, $batch['facility_id'], $batch['item_id'], $batch['recipe_version_id'],
+                $batch['qc_spec_id'], $targetQty, $batch['priority'],
+                $batch['assigned_to'], 'REWORK of ' . $batch['batch_number'] . ': ' . $reason,
+                (int)$id, $userId,
+            ]);
+            $reworkId = (int)$this->db()->lastInsertId();
+
+            // Add original item as first ingredient line
+            $uomStmt = $this->db()->prepare("SELECT uom_id FROM items WHERE id = ?");
+            $uomStmt->execute([$batch['item_id']]);
+            $uomId = (int)$uomStmt->fetchColumn();
+
+            $this->db()->prepare("INSERT INTO batch_ticket_lines (batch_id, item_id, uom_id, theoretical_quantity, sequence) VALUES (?, ?, ?, ?, 1)")
+                ->execute([$reworkId, $batch['item_id'], $uomId, (float)$batch['actual_yield']]);
+
+            // Lineage
+            $this->db()->prepare("INSERT INTO batch_lineage (parent_batch_id, child_batch_id) VALUES (?, ?)")->execute([(int)$id, $reworkId]);
+
+            $this->db()->commit();
+            $this->auditCreate('batch_tickets', $reworkId, ['batch_number' => $reworkNumber, 'rework_of' => $batch['batch_number']]);
+            $this->toast("Rework batch {$reworkNumber} created. Original output quarantined.", 'warning');
+            $this->redirect("/batches/{$reworkId}/edit");
+        } catch (\Throwable $e) {
+            $this->db()->rollBack();
+            $this->toast('Error: ' . $e->getMessage(), 'error');
+            $this->redirect("/batches/{$id}");
+        }
+    }
+
+    // ── Cost Summary ────────────────────────────────────────────────
+
+    public function costSummary(string $id): void
+    {
+        if (!$this->checkPermission('batch_tickets', 'view')) { http_response_code(403); echo 'Access Denied'; exit; }
+        $batch = $this->getOrFail((int)$id);
+
+        $ingredients = $this->db()->prepare("
+            SELECT bil.*, i.item_code, i.description as item_description
+            FROM batch_ingredient_lots bil
+            JOIN items i ON bil.ingredient_item_id = i.id
+            WHERE bil.batch_id = ?
+            ORDER BY bil.id
+        ");
+        $ingredients->execute([(int)$id]);
+
+        $this->jsonResponse([
+            'ingredients' => $ingredients->fetchAll(),
+            'total_cost' => (float)$batch['total_batch_cost'],
+            'total_yield' => (float)$batch['actual_yield'],
+            'cost_per_unit' => (float)$batch['cost_per_unit'],
+        ]);
+    }
+
+    // ── COA ─────────────────────────────────────────────────────────
+
+    public function coa(string $id): void
+    {
+        if (!$this->checkPermission('batch_tickets', 'view')) { http_response_code(403); echo 'Access Denied'; exit; }
+        $batch = $this->getOrFail((int)$id);
+        if ($batch['status'] !== 'CLOSED') { $this->toast('COA only available for closed batches.', 'error'); $this->redirect("/batches/{$id}"); return; }
+
+        $customerId = (int)($_GET['customer_id'] ?? 0);
+        $html = $this->buildCoaHtml($batch, $customerId);
+
+        $dompdf = new \Dompdf\Dompdf();
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('letter', 'portrait');
+        $dompdf->render();
+        $dompdf->stream("COA_{$batch['batch_number']}.pdf", ['Attachment' => false]);
+        exit;
+    }
+
+    public function coaEmail(string $id): void
+    {
+        if (!$this->checkPermission('batch_tickets', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+        $batch = $this->getOrFail((int)$id);
+
+        $customerId = (int)($_POST['customer_id'] ?? 0);
+        $contactEmail = trim($_POST['contact_email'] ?? '');
+
+        if (!$contactEmail) { $this->toast('Contact email required.', 'error'); $this->redirect("/batches/{$id}"); return; }
+
+        $html = $this->buildCoaHtml($batch, $customerId);
+        $dompdf = new \Dompdf\Dompdf();
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('letter', 'portrait');
+        $dompdf->render();
+
+        $pdfPath = sys_get_temp_dir() . "/COA_{$batch['batch_number']}.pdf";
+        file_put_contents($pdfPath, $dompdf->output());
+
+        if ($this->emailService) {
+            $this->emailService->send('coa', [$contactEmail],
+                ['batch_number' => $batch['batch_number'], 'item_code' => $batch['item_code']],
+                $pdfPath, "COA_{$batch['batch_number']}.pdf", 'batch_ticket', (int)$id);
+        }
+
+        @unlink($pdfPath);
+        $this->toast("COA emailed to {$contactEmail}.", 'success');
+        $this->redirect("/batches/{$id}");
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────
+
+    private function buildCoaHtml(array $batch, int $customerId = 0): string
+    {
+        // Get QC results
+        $qcStmt = $this->db()->prepare("
+            SELECT qr.*, qst.test_name, qst.test_type, qst.min_value, qst.max_value, qst.uom
+            FROM qc_results qr
+            JOIN qc_spec_tests qst ON qr.test_id = qst.id
+            WHERE qr.batch_id = ?
+            ORDER BY qst.display_sequence, qst.id
+        ");
+        $qcStmt->execute([$batch['id']]);
+        $qcResults = $qcStmt->fetchAll();
+
+        // Customer alias resolution
+        $itemCode = $batch['item_code'];
+        $itemDesc = $batch['item_description'];
+        if ($customerId) {
+            $aliasStmt = $this->db()->prepare("SELECT alias_code, alias_description FROM item_aliases WHERE item_id = ? AND customer_id = ? AND active = 1 LIMIT 1");
+            $aliasStmt->execute([$batch['item_id'], $customerId]);
+            $alias = $aliasStmt->fetch();
+            if ($alias) {
+                $itemCode = $alias['alias_code'];
+                $itemDesc = $alias['alias_description'] ?: $itemDesc;
+            }
+        }
+
+        $testRows = '';
+        $allPass = true;
+        foreach ($qcResults as $qr) {
+            $spec = $qr['test_type'] === 'NUMERIC_RANGE' ? number_format((float)($qr['min_value'] ?? 0), 2) . ' — ' . number_format((float)($qr['max_value'] ?? 0), 2) . ' ' . htmlspecialchars($qr['uom'] ?? '') : 'Pass/Fail';
+            $pf = $qr['pass_fail'] === 'PASS' ? '<span style="color:green;">PASS</span>' : '<span style="color:red;">FAIL</span>';
+            if ($qr['pass_fail'] === 'FAIL') $allPass = false;
+            $testRows .= '<tr><td>' . htmlspecialchars($qr['test_name']) . '</td><td>' . $spec . '</td><td>' . htmlspecialchars($qr['result_value']) . '</td><td>' . $pf . '</td></tr>';
+        }
+
+        $overallStatus = $allPass ? '<span style="color:green;font-weight:bold;">PASS</span>' : '<span style="color:red;font-weight:bold;">FAIL</span>';
+
+        return '<!DOCTYPE html><html><head><style>
+            body{font-family:Arial,sans-serif;font-size:12px;margin:40px;}
+            h1{font-size:20px;text-align:center;margin-bottom:4px;}
+            h2{font-size:14px;text-align:center;color:#555;margin-bottom:20px;}
+            table{width:100%;border-collapse:collapse;margin:12px 0;}
+            th,td{border:1px solid #ccc;padding:6px 8px;text-align:left;}
+            th{background:#f0f0f0;}
+            .info{margin-bottom:16px;}.info td{border:none;padding:3px 8px;}
+            .sig{margin-top:40px;}.sig td{border:none;padding:8px 0;border-bottom:1px solid #333;width:45%;}
+        </style></head><body>
+            <h1>Certificate of Analysis</h1>
+            <h2>Precision Ink ERP</h2>
+            <table class="info"><tr><td><strong>Item:</strong> ' . htmlspecialchars($itemCode) . '</td><td><strong>Description:</strong> ' . htmlspecialchars($itemDesc) . '</td></tr>
+            <tr><td><strong>Batch/Lot Number:</strong> ' . htmlspecialchars($batch['batch_number']) . '</td><td><strong>Date Produced:</strong> ' . ($batch['closed_at'] ? date('M j, Y', strtotime($batch['closed_at'])) : '') . '</td></tr>
+            <tr><td><strong>Quantity Produced:</strong> ' . number_format((float)$batch['actual_yield'], 4) . '</td><td><strong>Overall QC Status:</strong> ' . $overallStatus . '</td></tr></table>'
+            . ($testRows ? '<table><thead><tr><th>Test</th><th>Specification</th><th>Result</th><th>Pass/Fail</th></tr></thead><tbody>' . $testRows . '</tbody></table>' : '<p>No QC test results recorded.</p>')
+            . '<table class="sig"><tr><td>Released By:</td><td>Date:</td></tr></table>
+        </body></html>';
+    }
 
     private function getOrFail(int $id): array
     {

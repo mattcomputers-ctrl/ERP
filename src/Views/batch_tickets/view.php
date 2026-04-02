@@ -36,6 +36,13 @@
                     <button class="btn btn-secondary" onclick="document.getElementById('splitModal').classList.add('active')">Split</button>
                     <button class="btn btn-secondary" onclick="document.getElementById('templateModal').classList.add('active')">Save Template</button>
                 <?php endif;?>
+                <?php if(in_array($batch['status'],['OPEN','IN_PROGRESS'])):?>
+                    <a href="/batches/<?=$batch['id']?>/close" class="btn btn-primary">Close Batch</a>
+                <?php endif;?>
+                <?php if($batch['status']==='CLOSED'):?>
+                    <a href="/batches/<?=$batch['id']?>/coa" class="btn btn-secondary" target="_blank">COA PDF</a>
+                    <a href="/batches/<?=$batch['id']?>/rework" class="btn btn-warning">Rework</a>
+                <?php endif;?>
                 <form method="POST" action="/batches/<?=$batch['id']?>/clone" style="display:inline;"><button type="submit" class="btn btn-secondary">Clone</button></form>
                 <?php if(!in_array($batch['status'],['CLOSED','CANCELLED'])):?>
                     <form method="POST" action="/batches/<?=$batch['id']?>/cancel" style="display:inline;"><button type="submit" class="btn btn-warning" onclick="return confirm('Cancel?')">Cancel</button></form>
@@ -45,6 +52,7 @@
 
         <div class="tab-bar">
             <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
+            <?php if($batch['status']==='CLOSED'):?><button class="tab-btn" onclick="switchTab('cost')">Cost Summary</button><?php endif;?>
             <button class="tab-btn" onclick="switchTab('scrap')">Scrap</button>
             <button class="tab-btn" onclick="switchTab('attachments')">Attachments</button>
             <button class="tab-btn" onclick="switchTab('custom-fields')">Custom Fields</button>
@@ -109,7 +117,39 @@
                 <tbody><?php foreach($packs as $p):?><tr><td><?=htmlspecialchars($p['pack_name'])?></td><td style="text-align:right;"><?=number_format((float)$p['target_quantity'],4)?></td></tr><?php endforeach;?></tbody>
             </table>
             <?php endif;?>
+
+            <?php if($batch['status']==='CLOSED'):?>
+            <div style="margin-top:16px;padding:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;">
+                <h4 style="margin:0 0 8px;font-size:13px;color:#166534;text-transform:uppercase;">Batch Results</h4>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;text-align:center;">
+                    <div><div style="font-size:11px;color:#6b7280;">Actual Yield</div><div style="font-size:16px;font-weight:600;"><?=number_format((float)$batch['actual_yield'],4)?></div></div>
+                    <div><div style="font-size:11px;color:#6b7280;">Yield %</div><div style="font-size:16px;font-weight:600;"><?=number_format((float)$batch['yield_percentage'],2)?>%</div></div>
+                    <div><div style="font-size:11px;color:#6b7280;">Total Cost</div><div style="font-size:16px;font-weight:600;">$<?=number_format((float)$batch['total_batch_cost'],2)?></div></div>
+                    <div><div style="font-size:11px;color:#6b7280;">Cost/Unit</div><div style="font-size:16px;font-weight:600;">$<?=number_format((float)$batch['cost_per_unit'],4)?></div></div>
+                </div>
+            </div>
+            <?php endif;?>
         </div>
+
+        <!-- Cost Summary Tab (closed batches only) -->
+        <?php if($batch['status']==='CLOSED'):?>
+        <div id="tab-cost" class="tab-panel">
+            <p style="color:#6b7280;font-size:13px;margin-bottom:8px;">Ingredient costs from FIFO lot consumption:</p>
+            <div id="costData" style="color:#9ca3af;">Loading cost data...</div>
+            <script>
+            fetch('/batches/<?=$batch['id']?>/cost').then(r=>r.json()).then(function(d){
+                var html='<table class="data-table"><thead><tr><th>Item</th><th>Supplier Lot</th><th style="text-align:right;">Qty Used</th><th style="text-align:right;">Unit Cost</th><th style="text-align:right;">Line Cost</th></tr></thead><tbody>';
+                d.ingredients.forEach(function(i){
+                    html+='<tr><td style="font-weight:500;">'+i.item_code+'</td><td>'+((i.supplier_lot_number)||'—')+'</td><td style="text-align:right;">'+parseFloat(i.quantity_used).toFixed(4)+'</td><td style="text-align:right;">$'+parseFloat(i.unit_cost).toFixed(4)+'</td><td style="text-align:right;">$'+(parseFloat(i.quantity_used)*parseFloat(i.unit_cost)).toFixed(2)+'</td></tr>';
+                });
+                html+='<tr style="font-weight:600;border-top:2px solid #d1d5db;"><td colspan="4" style="text-align:right;">Total</td><td style="text-align:right;">$'+parseFloat(d.total_cost).toFixed(2)+'</td></tr>';
+                html+='</tbody></table>';
+                html+='<div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center;"><div><strong>Total Yield:</strong> '+parseFloat(d.total_yield).toFixed(4)+'</div><div><strong>Total Cost:</strong> $'+parseFloat(d.total_cost).toFixed(2)+'</div><div><strong>Cost/Unit:</strong> $'+parseFloat(d.cost_per_unit).toFixed(4)+'</div></div>';
+                document.getElementById('costData').innerHTML=html;
+            });
+            </script>
+        </div>
+        <?php endif;?>
 
         <!-- Scrap Tab -->
         <div id="tab-scrap" class="tab-panel">

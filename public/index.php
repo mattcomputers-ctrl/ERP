@@ -44,6 +44,7 @@ $container = [
     'fifo'          => new \App\Services\FIFOService($pdo),
 ];
 $container['reservation'] = new \App\Services\ReservationService($pdo, $container['fifo']);
+$container['batch_cost'] = new \App\Services\BatchCostService($pdo, $container['fifo']);
 
 \PrecisionInk\Controllers\BaseController::setContainer($container);
 
@@ -237,6 +238,13 @@ $router->mount('/batches', function () use ($router) {
     $router->post('/(\d+)/scrap',              "{$c}@logScrap");
     $router->post('/(\d+)/save-template',      "{$c}@saveTemplate");
     $router->get('/(\d+)/print',               "{$c}@printPdf");
+    $router->get('/(\d+)/close',               "{$c}@closeForm");
+    $router->post('/(\d+)/close',              "{$c}@close");
+    $router->get('/(\d+)/rework',              "{$c}@reworkForm");
+    $router->post('/(\d+)/rework',             "{$c}@rework");
+    $router->get('/(\d+)/cost',                "{$c}@costSummary");
+    $router->get('/(\d+)/coa',                 "{$c}@coa");
+    $router->post('/(\d+)/coa/email',          "{$c}@coaEmail");
 });
 
 // ── Repack ──────────────────────────────────────────────────────────
