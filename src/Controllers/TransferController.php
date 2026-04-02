@@ -453,8 +453,13 @@ class TransferController extends BaseController
 
                     if ($qty <= 0 || !$lotNumber) continue;
 
-                    // TODO: wire to FIFOService::consume() in Session 10
-                    // FIFOService::consume($line['item_id'], $transfer['from_facility_id'], $qty, 'TRANSFER', $lineId);
+                    // Consume from source facility FIFO lots
+                    if ($this->fifoService) {
+                        $this->fifoService->consume(
+                            (int)$line['item_id'], (int)$transfer['from_facility_id'],
+                            $qty, 'TRANSFER', $lineId, $userId
+                        );
+                    }
 
                     $this->db()->prepare(
                         'INSERT INTO transfer_line_lots (transfer_line_id, lot_number, quantity, source_fifo_lot_id, created_at) VALUES (?, ?, ?, ?, NOW())'
@@ -574,9 +579,20 @@ class TransferController extends BaseController
                 $lots = $lotStmt->fetchAll();
 
                 foreach ($lots as $lot) {
-                    // TODO: wire to FIFOService::addLot() in Session 10
-                    // FIFOService::addLot($line['item_id'], $transfer['to_facility_id'], $lot['quantity'], $unitCost, $lot['lot_number'], 'TRANSFER', $lineId);
-                    // Update dest_fifo_lot_id once FIFOService returns the new lot ID
+                    if ($this->fifoService) {
+                        // Get unit cost from source lot
+                        $srcLot = $lot['source_fifo_lot_id'] ? $this->fifoService->getLotById((int)$lot['source_fifo_lot_id']) : null;
+                        $unitCost = $srcLot ? (float)$srcLot['unit_cost'] : 0;
+
+                        $newLotId = $this->fifoService->addLot(
+                            (int)$line['item_id'], (int)$transfer['to_facility_id'],
+                            (float)$lot['quantity'], $unitCost, $lot['lot_number'],
+                            'TRANSFER', $lineId, null, 'AVAILABLE', $userId
+                        );
+
+                        $this->db()->prepare('UPDATE transfer_line_lots SET dest_fifo_lot_id = ? WHERE id = ?')
+                            ->execute([$newLotId, $lot['id']]);
+                    }
                 }
 
                 $this->db()->prepare(

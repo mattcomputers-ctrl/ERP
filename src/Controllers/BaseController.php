@@ -10,6 +10,8 @@ use App\Services\AttachmentService;
 use App\Services\SupplierService;
 use App\Services\CreditService;
 use App\Services\CustomerResolutionService;
+use App\Services\FIFOService;
+use App\Services\ReservationService;
 
 abstract class BaseController
 {
@@ -22,6 +24,8 @@ abstract class BaseController
     protected ?SupplierService $supplierService = null;
     protected ?CreditService $creditService = null;
     protected ?CustomerResolutionService $customerResolutionService = null;
+    protected ?FIFOService $fifoService = null;
+    protected ?ReservationService $reservationService = null;
 
     /** @var array Static service container, set once at bootstrap time. */
     private static array $container = [];
@@ -67,6 +71,12 @@ abstract class BaseController
         }
         if (isset(self::$container['customer_res'])) {
             $this->customerResolutionService = self::$container['customer_res'];
+        }
+        if (isset(self::$container['fifo'])) {
+            $this->fifoService = self::$container['fifo'];
+        }
+        if (isset(self::$container['reservation'])) {
+            $this->reservationService = self::$container['reservation'];
         }
     }
 

@@ -41,7 +41,9 @@ $container = [
     'supplier'      => new \App\Services\SupplierService($pdo),
     'credit'        => new \App\Services\CreditService($pdo),
     'customer_res'  => new \App\Services\CustomerResolutionService($pdo),
+    'fifo'          => new \App\Services\FIFOService($pdo),
 ];
+$container['reservation'] = new \App\Services\ReservationService($pdo, $container['fifo']);
 
 \PrecisionInk\Controllers\BaseController::setContainer($container);
 
@@ -135,7 +137,24 @@ $router->mount('/customers', function () use ($router) {
 
 // ── Inventory ───────────────────────────────────────────────────────
 $router->mount('/inventory', function () use ($router) {
-    // TODO: stock levels, adjustments, lot tracking
+    $c = 'PrecisionInk\\Controllers\\InventoryController';
+    $router->get('/',                          "{$c}@index");
+    $router->get('/lots/(\d+)',                "{$c}@lots");
+    $router->get('/adjustments',               "{$c}@adjustmentForm");
+    $router->post('/adjustments',              "{$c}@saveAdjustment");
+    $router->get('/quarantine',                "{$c}@quarantineList");
+    $router->post('/quarantine/(\d+)',         "{$c}@quarantineLot");
+    $router->post('/release/(\d+)',            "{$c}@releaseLot");
+    $router->get('/transactions',              "{$c}@transactions");
+    $router->get('/counts',                    "{$c}@countSessions");
+    $router->get('/counts/create',             "{$c}@createCountForm");
+    $router->post('/counts/create',            "{$c}@createCount");
+    $router->get('/counts/(\d+)',              "{$c}@countSession");
+    $router->post('/counts/(\d+)/entry',       "{$c}@saveCountEntry");
+    $router->get('/counts/(\d+)/review',       "{$c}@reviewCount");
+    $router->post('/counts/(\d+)/post',        "{$c}@postCount");
+    $router->post('/counts/(\d+)/cancel',      "{$c}@cancelCount");
+    $router->get('/counts/(\d+)/sheet',        "{$c}@countSheet");
 });
 
 // ── Purchase Requisitions ───────────────────────────────────────────
