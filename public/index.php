@@ -45,6 +45,7 @@ $container = [
 ];
 $container['reservation'] = new \App\Services\ReservationService($pdo, $container['fifo']);
 $container['batch_cost'] = new \App\Services\BatchCostService($pdo, $container['fifo']);
+$container['pricing'] = new \App\Services\PricingService($pdo);
 
 \PrecisionInk\Controllers\BaseController::setContainer($container);
 
@@ -202,7 +203,19 @@ $router->mount('/sales-orders', function () use ($router) {
 
 // ── Quotes ──────────────────────────────────────────────────────────
 $router->mount('/quotes', function () use ($router) {
-    // TODO: quotation management
+    $c = 'PrecisionInk\\Controllers\\QuoteController';
+    $router->get('/',                  "{$c}@index");
+    $router->get('/create',            "{$c}@create");
+    $router->post('/create',           "{$c}@store");
+    $router->get('/price',             "{$c}@priceCheck");
+    $router->get('/(\d+)',             "{$c}@show");
+    $router->get('/(\d+)/edit',        "{$c}@editForm");
+    $router->post('/(\d+)/edit',       "{$c}@update");
+    $router->post('/(\d+)/send',       "{$c}@send");
+    $router->post('/(\d+)/accept',     "{$c}@accept");
+    $router->post('/(\d+)/decline',    "{$c}@decline");
+    $router->post('/(\d+)/convert',    "{$c}@convert");
+    $router->post('/(\d+)/clone',      "{$c}@cloneQuote");
 });
 
 // ── Shipments ───────────────────────────────────────────────────────
