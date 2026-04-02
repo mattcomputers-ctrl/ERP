@@ -114,6 +114,7 @@ $router->mount('/items', function () use ($router) {
     $router->post('/(\d+)/clone',               'PrecisionInk\\Controllers\\ItemController@cloneItem');
     $router->post('/(\d+)/packs',               'PrecisionInk\\Controllers\\ItemController@savePack');
     $router->post('/(\d+)/packs/(\d+)/deactivate', 'PrecisionInk\\Controllers\\ItemController@deactivatePack');
+    $router->post('/(\d+)/pack-overrides/(\d+)', 'PrecisionInk\\Controllers\\ItemController@savePackOverride');
     $router->post('/(\d+)/aliases',             'PrecisionInk\\Controllers\\ItemController@saveAlias');
     $router->post('/(\d+)/aliases/(\d+)/deactivate', 'PrecisionInk\\Controllers\\ItemController@deactivateAlias');
     $router->post('/(\d+)/substitutions',       'PrecisionInk\\Controllers\\ItemController@saveSubstitution');
@@ -583,6 +584,12 @@ $router->mount('/settings', function () use ($router) {
     // Equipment
     $router->get('/equipment',           "{$c}@equipment");
     $router->post('/equipment',          "{$c}@saveEquipment");
+
+    // Pack Extension Types
+    $router->get('/pack-extensions',                   "{$c}@packExtensionTypes");
+    $router->get('/pack-extensions/create',            "{$c}@packExtensionTypeForm");
+    $router->get('/pack-extensions/(\d+)/edit',        "{$c}@packExtensionTypeForm");
+    $router->post('/pack-extensions/save',             "{$c}@savePackExtensionType");
 
     // Item Prototypes
     $router->get('/item-prototypes',          "{$c}@itemPrototypes");

@@ -694,7 +694,38 @@ class BatchController extends BaseController
                 );
             }
 
-            // 7. Save QC results
+            // 7. Consume packaging materials (warn but don't hard-block)
+            $packMaterialWarnings = [];
+            foreach ($packData as $packId => $pd) {
+                $actualQty = (float)($pd['actual_quantity'] ?? 0);
+                if ($actualQty <= 0) continue;
+
+                $peId2 = $this->db()->prepare("SELECT pack_extension_id FROM batch_ticket_packs WHERE id = ?");
+                $peId2->execute([(int)$packId]);
+                $packExtTypeId = (int)$peId2->fetchColumn();
+                if (!$packExtTypeId) continue;
+
+                // Get container count for this pack line
+                $containerCount = (int)($pd['container_count'] ?? 0);
+                if ($containerCount <= 0) continue;
+
+                // Look up packaging materials for this pack extension type
+                $matStmt = $this->db()->prepare("SELECT pem.item_id, pem.quantity_per_pack, i.item_code FROM pack_extension_materials pem JOIN items i ON i.id = pem.item_id WHERE pem.pack_extension_type_id = ?");
+                $matStmt->execute([$packExtTypeId]);
+                $materials = $matStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+                foreach ($materials as $mat) {
+                    $consumeQty = round((float)$mat['quantity_per_pack'] * $containerCount, 4);
+                    if ($consumeQty <= 0) continue;
+                    try {
+                        $this->fifoService->consume((int)$mat['item_id'], (int)$batch['facility_id'], $consumeQty, 'BATCH', (int)$id, $userId);
+                    } catch (\Throwable $e) {
+                        $packMaterialWarnings[] = "Could not consume packaging material {$mat['item_code']}: {$e->getMessage()}";
+                    }
+                }
+            }
+
+            // 8. Save QC results (was step 7)
             $specId = $batch['qc_spec_id'];
             if (!$specId) {
                 $specCheck = $this->db()->prepare("SELECT id FROM qc_specs WHERE item_id = ? AND is_active = 1 LIMIT 1");
@@ -713,7 +744,7 @@ class BatchController extends BaseController
                 }
             }
 
-            // 8. Update batch ticket
+            // 9. Update batch ticket
             $this->db()->prepare("UPDATE batch_tickets SET status='CLOSED', actual_yield=?, yield_percentage=?, total_batch_cost=?, cost_per_unit=?, closed_by=?, closed_at=NOW(), updated_at=NOW() WHERE id=?")
                 ->execute([$totalYield, round($yieldPct, 4), $totalCost, round($costPerUnit, 4), $userId, (int)$id]);
 
@@ -729,7 +760,11 @@ class BatchController extends BaseController
                 ], 'batch_ticket', (int)$id);
             }
 
-            $this->toast("Batch {$batch['batch_number']} closed. Yield: " . number_format($totalYield, 4) . ", Cost: $" . number_format($totalCost, 2), 'success');
+            $closeMsg = "Batch {$batch['batch_number']} closed. Yield: " . number_format($totalYield, 4) . ", Cost: $" . number_format($totalCost, 2);
+            if (!empty($packMaterialWarnings)) {
+                $closeMsg .= ' | Packaging warnings: ' . implode('; ', $packMaterialWarnings);
+            }
+            $this->toast($closeMsg, empty($packMaterialWarnings) ? 'success' : 'warning');
             $this->redirect("/batches/{$id}");
         } catch (\App\Exceptions\NegativeInventoryException $e) {
             $this->db()->rollBack();

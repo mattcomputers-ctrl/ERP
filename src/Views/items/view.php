@@ -184,51 +184,51 @@
 
         <!-- Pack Extensions Tab -->
         <div id="tab-packs" class="tab-panel">
-            <form method="POST" action="/items/<?= $item['id'] ?>/packs" class="inline-form" id="packForm">
-                <input type="hidden" name="pack_id" id="packId" value="">
-                <div class="form-group">
-                    <label>Name <span style="color:red;">*</span></label>
-                    <input type="text" name="name" id="packName" required class="form-input" style="width:200px;">
-                </div>
-                <div class="form-group">
-                    <label>Net Weight</label>
-                    <input type="number" step="0.0001" name="net_weight" id="packNetWeight" value="0" class="form-input" style="width:120px;">
-                </div>
-                <div class="form-group">
-                    <label>Tare Weight</label>
-                    <input type="number" step="0.0001" name="tare_weight" id="packTareWeight" value="0" class="form-input" style="width:120px;">
-                </div>
-                <button type="submit" class="btn btn-primary btn-sm">Save</button>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="resetPackForm()" style="display:none;" id="packCancelBtn">Cancel</button>
-            </form>
+            <p style="font-size:12px;color:#6b7280;margin-bottom:8px;">Global pack types with per-item overrides. Manage types in <a href="/settings/pack-extensions" style="color:#2563eb;">Settings &rarr; Pack Extensions</a>.</p>
 
-            <table class="data-table">
-                <thead>
-                    <tr><th>Name</th><th>Net Weight</th><th>Tare Weight</th><th>Active</th><th>Actions</th></tr>
-                </thead>
+            <?php if (!empty($globalPackTypes)): ?>
+            <table class="data-table" style="font-size:13px;">
+                <thead><tr><th>Code</th><th>Pack Type</th><th style="text-align:right;">Global Net Wt</th><th style="text-align:right;">Item Override</th><th style="text-align:right;">Effective Net</th><th style="text-align:right;">Tare Wt</th><th style="text-align:right;">Gross Wt</th><th>Active</th><th>Actions</th></tr></thead>
                 <tbody>
-                    <?php if (empty($packExtensions)): ?>
-                        <tr><td colspan="5" class="empty-state">No pack extensions.</td></tr>
-                    <?php else: ?>
-                        <?php foreach ($packExtensions as $pack): ?>
-                        <tr class="<?= !$pack['active'] ? 'inactive-row' : '' ?>">
-                            <td><?= htmlspecialchars($pack['name']) ?></td>
-                            <td><?= number_format((float)$pack['net_weight'], 4) ?></td>
-                            <td><?= number_format((float)$pack['tare_weight'], 4) ?></td>
-                            <td><span class="badge <?= $pack['active'] ? 'badge-active' : 'badge-inactive' ?>"><?= $pack['active'] ? 'Active' : 'Inactive' ?></span></td>
-                            <td class="actions-cell">
-                                <?php if ($pack['active']): ?>
-                                <button class="btn btn-sm btn-secondary" onclick="editPack(<?= htmlspecialchars(json_encode($pack)) ?>)">Edit</button>
-                                <form method="POST" action="/items/<?= $item['id'] ?>/packs/<?= $pack['id'] ?>/deactivate" style="display:inline;">
-                                    <button type="submit" class="btn btn-sm btn-warning" onclick="return confirm('Deactivate?')">Deactivate</button>
-                                </form>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                <?php foreach ($globalPackTypes as $pt):
+                    $effectiveNet = (float)$pt['effective_net'];
+                    $gross = $effectiveNet + (float)$pt['tare_weight'];
+                ?>
+                <tr class="<?= !$pt['item_active'] ? 'inactive-row' : '' ?>">
+                    <td style="font-family:monospace;font-weight:600;"><?= htmlspecialchars($pt['code']) ?></td>
+                    <td><?= htmlspecialchars($pt['name']) ?></td>
+                    <td style="text-align:right;"><?= number_format((float)$pt['default_net_weight'], 4) ?></td>
+                    <td style="text-align:right;<?= $pt['net_weight_override'] !== null ? 'font-weight:600;color:#1d4ed8;' : 'color:#9ca3af;' ?>"><?= $pt['net_weight_override'] !== null ? number_format((float)$pt['net_weight_override'], 4) : '—' ?></td>
+                    <td style="text-align:right;font-weight:500;"><?= number_format($effectiveNet, 4) ?></td>
+                    <td style="text-align:right;"><?= number_format((float)$pt['tare_weight'], 4) ?></td>
+                    <td style="text-align:right;font-weight:500;"><?= number_format($gross, 4) ?></td>
+                    <td><span class="badge <?= $pt['item_active'] ? 'badge-active' : 'badge-inactive' ?>"><?= $pt['item_active'] ? 'Active' : 'Off' ?></span></td>
+                    <td class="actions-cell">
+                        <form method="POST" action="/items/<?= $item['id'] ?>/pack-overrides/<?= $pt['id'] ?>" style="display:inline-flex;gap:4px;align-items:center;">
+                            <input type="number" step="0.0001" name="net_weight_override" value="<?= $pt['net_weight_override'] ?? '' ?>" placeholder="<?= $pt['default_net_weight'] ?>" class="form-input" style="width:80px;font-size:12px;padding:2px 6px;">
+                            <label style="font-size:11px;display:flex;align-items:center;gap:2px;"><input type="checkbox" name="active" value="1" <?= $pt['item_active'] ? 'checked' : '' ?>> On</label>
+                            <button type="submit" class="btn btn-sm btn-secondary" style="font-size:11px;">Save</button>
+                        </form>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
                 </tbody>
             </table>
+            <?php else: ?>
+                <p style="color:#9ca3af;">No global pack extension types defined. <a href="/settings/pack-extensions" style="color:#2563eb;">Create one in Settings</a>.</p>
+            <?php endif; ?>
+
+            <?php if (!empty($packExtensions)): ?>
+            <h4 style="margin-top:16px;margin-bottom:8px;color:#6b7280;">Legacy Pack Extensions (from before redesign)</h4>
+            <table class="data-table" style="font-size:12px;">
+                <thead><tr><th>Name</th><th>Net Weight</th><th>Tare Weight</th><th>Active</th></tr></thead>
+                <tbody>
+                <?php foreach ($packExtensions as $pack): ?>
+                <tr class="<?= !$pack['active'] ? 'inactive-row' : '' ?>"><td><?= htmlspecialchars($pack['name']) ?></td><td><?= number_format((float)$pack['net_weight'], 4) ?></td><td><?= number_format((float)$pack['tare_weight'], 4) ?></td><td><span class="badge <?= $pack['active'] ? 'badge-active' : 'badge-inactive' ?>"><?= $pack['active'] ? 'Active' : 'Inactive' ?></span></td></tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+            <?php endif; ?>
         </div>
 
         <!-- Aliases Tab -->

@@ -573,6 +573,88 @@ class SettingsController extends BaseController
         $this->redirect('/settings/equipment');
     }
 
+    // ── Pack Extension Types ──────────────────────────────────────
+
+    public function packExtensionTypes(): void
+    {
+        $this->requireAdmin();
+        $types = $this->db()->query("
+            SELECT pet.*, (SELECT COUNT(*) FROM pack_extension_materials WHERE pack_extension_type_id = pet.id) as material_count
+            FROM pack_extension_types pet ORDER BY pet.display_sequence, pet.name
+        ")->fetchAll();
+
+        $this->renderView('settings/_layout', [
+            'title' => 'Pack Extension Types', 'section' => 'pack-extensions',
+            'content' => 'settings/pack_extension_types', 'types' => $types,
+        ]);
+    }
+
+    public function packExtensionTypeForm(string $id = '0'): void
+    {
+        $this->requireAdmin();
+        $type = null;
+        $materials = [];
+        if ((int)$id > 0) {
+            $stmt = $this->db()->prepare("SELECT * FROM pack_extension_types WHERE id = ?");
+            $stmt->execute([(int)$id]);
+            $type = $stmt->fetch();
+            if (!$type) { $this->toast('Not found.', 'error'); $this->redirect('/settings/pack-extensions'); return; }
+
+            $matStmt = $this->db()->prepare("SELECT pem.*, i.item_code, i.description as item_description FROM pack_extension_materials pem JOIN items i ON pem.item_id = i.id WHERE pem.pack_extension_type_id = ?");
+            $matStmt->execute([(int)$id]);
+            $materials = $matStmt->fetchAll();
+        }
+
+        $this->renderView('settings/_layout', [
+            'title' => $type ? 'Edit Pack Type: ' . $type['name'] : 'New Pack Extension Type',
+            'section' => 'pack-extensions', 'content' => 'settings/pack_extension_type_form',
+            'packType' => $type, 'materials' => $materials,
+        ]);
+    }
+
+    public function savePackExtensionType(): void
+    {
+        $this->requireAdmin();
+        $id = (int)($_POST['id'] ?? 0);
+        $code = strtoupper(trim($_POST['code'] ?? ''));
+        $name = trim($_POST['name'] ?? '');
+        $netWeight = (float)($_POST['default_net_weight'] ?? 0);
+        $tareWeight = (float)($_POST['tare_weight'] ?? 0);
+        $sequence = (int)($_POST['display_sequence'] ?? 0);
+        $active = isset($_POST['active']) ? 1 : 0;
+
+        if (!$code || !$name) { $this->toast('Code and name required.', 'error'); $this->redirect('/settings/pack-extensions'); return; }
+
+        if ($id) {
+            $this->db()->prepare("UPDATE pack_extension_types SET code=?, name=?, default_net_weight=?, tare_weight=?, display_sequence=?, active=?, updated_at=NOW() WHERE id=?")
+                ->execute([$code, $name, $netWeight, $tareWeight, $sequence, $active, $id]);
+        } else {
+            $this->db()->prepare("INSERT INTO pack_extension_types (code, name, default_net_weight, tare_weight, display_sequence, active) VALUES (?,?,?,?,?,?)")
+                ->execute([$code, $name, $netWeight, $tareWeight, $sequence, $active]);
+            $id = (int)$this->db()->lastInsertId();
+
+            // Auto-create overrides for all active items
+            $items = $this->db()->query("SELECT id FROM items WHERE active = 1 AND deleted_at IS NULL")->fetchAll(\PDO::FETCH_COLUMN);
+            $insStmt = $this->db()->prepare("INSERT IGNORE INTO item_pack_extension_overrides (item_id, pack_extension_type_id, active) VALUES (?, ?, 1)");
+            foreach ($items as $itemId) $insStmt->execute([$itemId, $id]);
+        }
+
+        // Save materials
+        $this->db()->prepare("DELETE FROM pack_extension_materials WHERE pack_extension_type_id = ?")->execute([$id]);
+        $matItems = $_POST['mat_item_id'] ?? [];
+        $matQtys = $_POST['mat_quantity'] ?? [];
+        $matInsert = $this->db()->prepare("INSERT INTO pack_extension_materials (pack_extension_type_id, item_id, quantity_per_pack) VALUES (?,?,?)");
+        foreach ($matItems as $i => $matItemId) {
+            if ((int)$matItemId && (float)($matQtys[$i] ?? 0) > 0) {
+                $matInsert->execute([$id, (int)$matItemId, (float)$matQtys[$i]]);
+            }
+        }
+
+        $this->auditLog('UPDATE', 'pack_extension_types', $id, [], ['name' => $name, 'code' => $code]);
+        $this->toast('Pack extension type saved.', 'success');
+        $this->redirect('/settings/pack-extensions');
+    }
+
     // ── Item Prototypes ────────────────────────────────────────────
 
     public function itemPrototypes(): void

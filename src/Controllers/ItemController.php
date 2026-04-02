@@ -228,6 +228,19 @@ class ItemController extends BaseController
         $avlStmt->execute([(int)$id]);
         $approvedVendors = $avlStmt->fetchAll();
 
+        // Global pack types with overrides
+        $packTypesStmt = $this->db()->prepare("
+            SELECT pet.id, pet.code, pet.name, pet.default_net_weight, pet.tare_weight,
+                   COALESCE(ipeo.net_weight_override, pet.default_net_weight) as effective_net,
+                   ipeo.net_weight_override, COALESCE(ipeo.active, 1) as item_active
+            FROM pack_extension_types pet
+            LEFT JOIN item_pack_extension_overrides ipeo ON ipeo.pack_extension_type_id = pet.id AND ipeo.item_id = ?
+            WHERE pet.active = 1
+            ORDER BY pet.display_sequence, pet.name
+        ");
+        $packTypesStmt->execute([(int)$id]);
+        $globalPackTypes = $packTypesStmt->fetchAll();
+
         // Active QC spec
         $qcSpecStmt = $this->db()->prepare("SELECT * FROM qc_specs WHERE item_id = ? AND is_active = 1 LIMIT 1");
         $qcSpecStmt->execute([(int)$id]);
@@ -243,6 +256,7 @@ class ItemController extends BaseController
         $this->renderView('items/view', [
             'item' => $item,
             'packExtensions' => $packExtensions,
+            'globalPackTypes' => $globalPackTypes,
             'aliases' => $aliases,
             'substitutions' => $substitutions,
             'locations' => $locations,
@@ -504,6 +518,29 @@ class ItemController extends BaseController
         $this->auditLog('UPDATE', 'item_pack_extensions', (int)$packId, ['active' => 1], ['active' => 0]);
         $this->toast('Pack extension deactivated.', 'success');
         $this->redirect("/items/{$id}#packs");
+    }
+
+    public function savePackOverride(string $id, string $packTypeId): void
+    {
+        if (!$this->checkPermission('items', 'edit')) { http_response_code(403); echo 'Access Denied'; exit; }
+
+        $netOverride = ($_POST['net_weight_override'] ?? '') !== '' ? (float)$_POST['net_weight_override'] : null;
+        $active = isset($_POST['active']) ? 1 : 0;
+
+        $this->db()->prepare("
+            INSERT INTO item_pack_extension_overrides (item_id, pack_extension_type_id, net_weight_override, active)
+            VALUES (?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE net_weight_override = VALUES(net_weight_override), active = VALUES(active), updated_at = NOW()
+        ")->execute([(int)$id, (int)$packTypeId, $netOverride, $active]);
+
+        $this->auditLog('UPDATE', 'item_pack_extension_overrides', (int)$id, [], ['pack_type' => (int)$packTypeId, 'net_override' => $netOverride, 'active' => $active]);
+
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+            $this->jsonResponse(['success' => true]);
+        } else {
+            $this->toast('Pack override saved.', 'success');
+            $this->redirect("/items/{$id}#packs");
+        }
     }
 
     // ── Aliases ────────────────────────────────────────────────────
