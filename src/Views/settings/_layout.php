@@ -97,8 +97,8 @@
 
             <div class="nav-group">
                 <h4 class="nav-group-title">Users &amp; Security</h4>
-                <span class="nav-link disabled">Users <em>(coming soon)</em></span>
-                <span class="nav-link disabled">Groups &amp; Permissions <em>(coming soon)</em></span>
+                <a href="/users" class="nav-link <?= ($section ?? '') === 'users' ? 'active' : '' ?>">Users</a>
+                <a href="/groups" class="nav-link <?= ($section ?? '') === 'groups' ? 'active' : '' ?>">Groups &amp; Permissions</a>
                 <a href="/settings/password-policy" class="nav-link <?= ($section ?? '') === 'password-policy' ? 'active' : '' ?>">Password Policy</a>
                 <a href="/settings/api-keys" class="nav-link <?= ($section ?? '') === 'api-keys' ? 'active' : '' ?>">API Keys</a>
                 <a href="/settings/user-activity" class="nav-link <?= ($section ?? '') === 'user-activity' ? 'active' : '' ?>">User Activity</a>

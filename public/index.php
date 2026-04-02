@@ -79,6 +79,27 @@ if (!$isPublic && empty($_SESSION['user'])) {
     exit;
 }
 
+// ── Users & Groups ──────────────────────────────────────────────────
+$router->mount('/users', function () use ($router) {
+    $c = 'PrecisionInk\\Controllers\\UserController';
+    $router->get('/',                      "{$c}@index");
+    $router->get('/create',                "{$c}@createForm");
+    $router->post('/create',               "{$c}@store");
+    $router->get('/(\d+)/edit',            "{$c}@editForm");
+    $router->post('/(\d+)/edit',           "{$c}@update");
+    $router->post('/(\d+)/deactivate',     "{$c}@deactivate");
+    $router->post('/(\d+)/reset-password', "{$c}@resetPassword");
+});
+$router->mount('/groups', function () use ($router) {
+    $c = 'PrecisionInk\\Controllers\\UserController';
+    $router->get('/',                      "{$c}@groupIndex");
+    $router->get('/create',                "{$c}@groupCreateForm");
+    $router->post('/create',               "{$c}@groupStore");
+    $router->get('/(\d+)/edit',            "{$c}@groupEditForm");
+    $router->post('/(\d+)/edit',           "{$c}@groupUpdate");
+    $router->post('/(\d+)/delete',         "{$c}@groupDelete");
+});
+
 // ── Items ───────────────────────────────────────────────────────────
 $router->mount('/items', function () use ($router) {
     $router->get('/',                           'PrecisionInk\\Controllers\\ItemController@index');
