@@ -228,6 +228,18 @@ class ItemController extends BaseController
         $avlStmt->execute([(int)$id]);
         $approvedVendors = $avlStmt->fetchAll();
 
+        // Active QC spec
+        $qcSpecStmt = $this->db()->prepare("SELECT * FROM qc_specs WHERE item_id = ? AND is_active = 1 LIMIT 1");
+        $qcSpecStmt->execute([(int)$id]);
+        $qcSpec = $qcSpecStmt->fetch() ?: null;
+
+        $qcSpecTests = [];
+        if ($qcSpec) {
+            $qcTestStmt = $this->db()->prepare("SELECT * FROM qc_spec_tests WHERE spec_id = ? ORDER BY display_sequence, id");
+            $qcTestStmt->execute([$qcSpec['id']]);
+            $qcSpecTests = $qcTestStmt->fetchAll();
+        }
+
         $this->renderView('items/view', [
             'item' => $item,
             'packExtensions' => $packExtensions,
@@ -236,6 +248,8 @@ class ItemController extends BaseController
             'locations' => $locations,
             'recipes' => $recipes,
             'approvedVendors' => $approvedVendors,
+            'qcSpec' => $qcSpec,
+            'qcSpecTests' => $qcSpecTests,
             'record' => $item,
         ]);
     }

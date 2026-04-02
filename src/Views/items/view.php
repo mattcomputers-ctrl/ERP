@@ -95,6 +95,7 @@
             <button class="tab-btn" onclick="switchTab('suppliers')">Suppliers</button>
             <button class="tab-btn" onclick="switchTab('custom-fields')">Custom Fields</button>
             <button class="tab-btn" onclick="switchTab('recipes')">Recipes</button>
+            <button class="tab-btn" onclick="switchTab('qc-specs')">QC Specs</button>
         </div>
 
         <!-- Details Tab -->
@@ -458,6 +459,36 @@
                 </table>
             <?php endif; ?>
         </div>
+
+        <!-- QC Specs Tab -->
+        <div id="tab-qc-specs" class="tab-panel">
+            <?php if (!empty($qcSpec)): ?>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <h4 style="margin:0;">Active Spec v<?= (int)$qcSpec['version_number'] ?></h4>
+                    <div style="display:flex;gap:8px;">
+                        <a href="/qc/specs/<?= $qcSpec['id'] ?>/edit" class="btn btn-sm btn-secondary">Edit Spec</a>
+                        <a href="/qc/specs/create?item_id=<?= $item['id'] ?>" class="btn btn-sm btn-secondary">New Version</a>
+                    </div>
+                </div>
+                <table class="data-table">
+                    <thead><tr><th>#</th><th>Test Name</th><th>Type</th><th>Range</th><th>UOM</th><th>Required</th></tr></thead>
+                    <tbody>
+                    <?php $n=1; foreach ($qcSpecTests as $t): ?>
+                    <tr>
+                        <td style="color:#9ca3af;"><?= $n++ ?></td>
+                        <td style="font-weight:500;"><?= htmlspecialchars($t['test_name']) ?></td>
+                        <td><span class="badge <?= $t['test_type']==='PASS_FAIL'?'badge-info':'badge-warning' ?>"><?= $t['test_type']==='PASS_FAIL'?'Pass/Fail':'Numeric' ?></span></td>
+                        <td><?= $t['test_type']==='NUMERIC_RANGE' ? number_format((float)($t['min_value']??0),4).' — '.number_format((float)($t['max_value']??0),4) : '—' ?></td>
+                        <td><?= htmlspecialchars($t['uom'] ?? '') ?></td>
+                        <td><?= $t['is_required'] ? '<span style="color:#16a34a;">Yes</span>' : 'No' ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php else: ?>
+                <p style="color:#9ca3af;">No QC spec defined. <a href="/qc/specs/create?item_id=<?= $item['id'] ?>" style="color:#2563eb;">Create one</a></p>
+            <?php endif; ?>
+        </div>
     </div>
 
     <script src="/assets/js/settings.js"></script>
@@ -483,7 +514,7 @@
             document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
             document.getElementById('tab-' + hash).classList.add('active');
             var btns = document.querySelectorAll('.tab-btn');
-            var tabNames = ['details','packs','aliases','substitutions','locations','suppliers','custom-fields','recipes'];
+            var tabNames = ['details','packs','aliases','substitutions','locations','suppliers','custom-fields','recipes','qc-specs'];
             var idx = tabNames.indexOf(hash);
             if (idx >= 0 && btns[idx]) btns[idx].classList.add('active');
         }

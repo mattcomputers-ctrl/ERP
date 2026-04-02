@@ -231,7 +231,41 @@ $router->mount('/repack', function () use ($router) {
 
 // ── QC ──────────────────────────────────────────────────────────────
 $router->mount('/qc', function () use ($router) {
-    // TODO: quality-control inspections
+    $c = 'PrecisionInk\\Controllers\\QcController';
+    $router->get('/specs',                   "{$c}@specsList");
+    $router->get('/specs/create',            "{$c}@specCreate");
+    $router->post('/specs/create',           "{$c}@specStore");
+    $router->get('/specs/(\d+)',             "{$c}@specView");
+    $router->get('/specs/(\d+)/edit',        "{$c}@specEditForm");
+    $router->post('/specs/(\d+)/edit',       "{$c}@specUpdate");
+    $router->post('/specs/(\d+)/deactivate', "{$c}@specDeactivate");
+    $router->get('/inspection',              "{$c}@inspectionQueue");
+    $router->get('/inspection/(\d+)',        "{$c}@inspectLot");
+    $router->post('/inspection/(\d+)/pass',  "{$c}@passLot");
+    $router->post('/inspection/(\d+)/fail',  "{$c}@failLot");
+});
+
+// ── SCARs ───────────────────────────────────────────────────────────
+$router->mount('/scars', function () use ($router) {
+    $c = 'PrecisionInk\\Controllers\\ScarController';
+    $router->get('/',                        "{$c}@index");
+    $router->get('/create',                  "{$c}@create");
+    $router->post('/create',                 "{$c}@store");
+    $router->get('/(\d+)',                   "{$c}@view");
+    $router->get('/(\d+)/edit',              "{$c}@editForm");
+    $router->post('/(\d+)/edit',             "{$c}@update");
+    $router->post('/(\d+)/respond',          "{$c}@respond");
+    $router->post('/(\d+)/close',            "{$c}@close");
+    $router->post('/(\d+)/cancel',           "{$c}@cancelScar");
+    $router->post('/(\d+)/email',            "{$c}@emailToSupplier");
+    $router->get('/(\d+)/pdf',               "{$c}@downloadPdf");
+});
+
+// ── Equipment Maintenance ───────────────────────────────────────────
+$router->mount('/equipment', function () use ($router) {
+    $c = 'PrecisionInk\\Controllers\\QcController';
+    $router->get('/(\d+)/maintenance',       "{$c}@maintenanceHistory");
+    $router->post('/(\d+)/maintenance',      "{$c}@logMaintenance");
 });
 
 // ── Transfers ───────────────────────────────────────────────────────
